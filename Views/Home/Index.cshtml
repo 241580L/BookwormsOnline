@@ -1,0 +1,47 @@
+﻿@model BookwormsOnline.ViewModels.HomeViewModel
+
+@{    ViewData["Title"] = "Home Page";
+}
+
+@if (Model != null && Model.Member != null)
+{
+    <h1>Welcome, @Model.Member.FirstName!</h1>
+
+    <div>
+        <h2>Your Information</h2>
+        <dl class="row">
+            <dt class="col-sm-3">First Name</dt>
+            <dd class="col-sm-9">@Model.Member.FirstName</dd>
+
+            <dt class="col-sm-3">Last Name</dt>
+            <dd class="col-sm-9">@Model.Member.LastName</dd>
+
+            <dt class="col-sm-3">Credit Card No</dt>
+            <dd class="col-sm-9">@Model.DecryptedCreditCardNo</dd>
+
+            <dt class="col-sm-3">Mobile No</dt>
+            <dd class="col-sm-9">@Model.Member.MobileNo</dd>
+
+            <dt class="col-sm-3">Billing Address</dt>
+            <dd class="col-sm-9">@Model.Member.BillingAddress</dd>
+
+            <dt class="col-sm-3">Shipping Address</dt>
+            <dd class="col-sm-9">@Model.Member.ShippingAddress</dd>
+
+            <dt class="col-sm-3">Email</dt>
+            <dd class="col-sm-9">@Model.Member.Email</dd>
+        </dl>
+
+        @if (!string.IsNullOrEmpty(Model.Member.PhotoURL))
+        {
+            <img src="@Model.Member.PhotoURL" alt="User Photo" style="max-width: 200px;" />
+        }
+    </div>
+}
+else
+{
+    <div class="text-center">
+        <h1 class="display-4">Welcome</h1>
+        <p>Please log in to see your information.</p>
+    </div>
+}

@@ -1,0 +1,155 @@
+@model BookwormsOnline.ViewModels.Register
+@inject Microsoft.Extensions.Options.IOptions<BookwormsOnline.Services.ReCaptchaSettings> RecaptchaOptions
+
+@{
+    ViewData["Title"] = "Register";
+    var siteKey = RecaptchaOptions?.Value?.SiteKey ?? "";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<form asp-action="Register" asp-controller="Account" method="post" enctype="multipart/form-data" id="registerForm" novalidate>
+    <div asp-validation-summary="All" class="text-danger"></div>
+    <div class="form-group">
+        <label asp-for="FirstName"></label>
+        <input asp-for="FirstName" class="form-control" />
+        <span asp-validation-for="FirstName" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="LastName"></label>
+        <input asp-for="LastName" class="form-control" />
+        <span asp-validation-for="LastName" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="CreditCardNo"></label>
+        <input asp-for="CreditCardNo" class="form-control" inputmode="numeric" />
+        <small class="form-text text-muted">Credit card is stored encrypted server-side.</small>
+        <span asp-validation-for="CreditCardNo" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="MobileNo"></label>
+        <input asp-for="MobileNo" class="form-control" />
+        <span asp-validation-for="MobileNo" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="BillingAddress"></label>
+        <input asp-for="BillingAddress" class="form-control" />
+        <span asp-validation-for="BillingAddress" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="ShippingAddress"></label>
+        <textarea asp-for="ShippingAddress" class="form-control"></textarea>
+        <span asp-validation-for="ShippingAddress" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="Email"></label>
+        <input asp-for="Email" class="form-control" />
+        <span asp-validation-for="Email" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="Password"></label>
+        <input asp-for="Password" id="password" class="form-control" autocomplete="new-password" />
+        <span asp-validation-for="Password" class="text-danger"></span>
+
+        <div class="mt-2">
+            <div class="progress" style="height:8px;">
+                <div id="pwStrengthBar" class="progress-bar" role="progressbar" style="width:0%"></div>
+            </div>
+            <small id="pwStrengthText" class="form-text text-muted"></small>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="ConfirmPassword"></label>
+        <input asp-for="ConfirmPassword" class="form-control" autocomplete="new-password" />
+        <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+    </div>
+
+    <div class="form-group">
+        <label asp-for="Photo">Photo (.JPG only)</label>
+        <input asp-for="Photo" type="file" accept=".jpg,image/jpeg" class="form-control-file" />
+        <span asp-validation-for="Photo" class="text-danger"></span>
+    </div>
+
+    <input type="hidden" id="recaptcha_token" name="recaptcha_token" />
+
+    <button type="submit" id="registerBtn" class="btn btn-primary mt-3">Register</button>
+</form>
+
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js" integrity="sha512-M6m5MYI6w3W5YpP6Y5u7t5g0gXf0l59F2g6LU0cLqz94s1U7mXVR2WqQn2j0aY2oVq6B1rM1k0Qp0Gm7J+Jwog==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- Google reCAPTCHA v3 -->
+    <script src="https://www.google.com/recaptcha/api.js?render=@siteKey"></script>
+
+    <script>
+        (function () {
+            var password = document.getElementById('password');
+            var strengthBar = document.getElementById('pwStrengthBar');
+            var strengthText = document.getElementById('pwStrengthText');
+            var registerBtn = document.getElementById('registerBtn');
+            var form = document.getElementById('registerForm');
+
+            function updateStrength() {
+                var val = password.value || '';
+                var result = zxcvbn(val);
+                var score = result.score; // 0 - 4
+                var pct = (score / 4) * 100;
+                strengthBar.style.width = pct + '%';
+                strengthBar.className = 'progress-bar';
+                if (score <= 1) {
+                    strengthBar.classList.add('bg-danger');
+                    strengthText.textContent = 'Weak';
+                } else if (score == 2) {
+                    strengthBar.classList.add('bg-warning');
+                    strengthText.textContent = 'Fair';
+                } else if (score == 3) {
+                    strengthBar.classList.add('bg-info');
+                    strengthText.textContent = 'Good';
+                } else {
+                    strengthBar.classList.add('bg-success');
+                    strengthText.textContent = 'Strong';
+                }
+            }
+
+            password.addEventListener('input', function () {
+                updateStrength();
+            });
+
+            // Client-side enforcement: require score >= 3 (Good) for enabling submit
+            form.addEventListener('submit', function (e) {
+                var val = password.value || '';
+                var res = zxcvbn(val);
+                if (res.score < 3) {
+                    e.preventDefault();
+                    alert('Please choose a stronger password (min. 12 chars, mix of upper/lower, numbers and symbols).');
+                    password.focus();
+                    return false;
+                }
+
+                // Acquire reCAPTCHA token and set hidden input before submitting
+                grecaptcha.ready(function () {
+                    grecaptcha.execute('@siteKey', { action: 'register' }).then(function (token) {
+                        document.getElementById('recaptcha_token').value = token;
+                        form.submit();
+                    });
+                });
+
+                // prevent default until reCAPTCHA completes
+                e.preventDefault();
+            });
+        })();
+    </script>
+
+    @* Include unobtrusive validation scripts if not already in layout *@
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+}

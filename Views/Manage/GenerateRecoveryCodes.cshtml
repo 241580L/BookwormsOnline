@@ -1,0 +1,14 @@
+@model BookwormsOnline.ViewModels.GenerateRecoveryCodesViewModel
+
+<h1>Recovery Codes</h1>
+
+<div>
+    <p><strong>Save these codes in a safe place.</strong></p>
+    <p>If you lose your device and don't have the recovery codes, you will lose access to your account.</p>
+    <ul>
+        @foreach (var code in Model.RecoveryCodes)
+        {
+            <li>@code</li>
+        }
+    </ul>
+</div>

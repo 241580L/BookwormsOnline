@@ -1,0 +1,22 @@
+@model BookwormsOnline.ViewModels.ManageViewModel
+
+<h1>Manage Your Account</h1>
+
+<div>
+    <h4>Two-Factor Authentication (2FA)</h4>
+    @if (Model.IsTwoFactorEnabled)
+    {
+        <p>Your account has two-factor authentication enabled.</p>
+        <p>You have @Model.RecoveryCodesLeft recovery codes left.</p>
+        <form asp-controller="Manage" asp-action="GenerateRecoveryCodes" method="post">
+            <button type="submit" class="btn btn-primary">Generate New Recovery Codes</button>
+        </form>
+    }
+    else
+    {
+        <p>Your account does not have two-factor authentication enabled.</p>
+        <form asp-controller="Manage" asp-action="EnableAuthenticator" method="post">
+            <button type="submit" class="btn btn-primary">Enable Authenticator</button>
+        </form>
+    }
+</div>

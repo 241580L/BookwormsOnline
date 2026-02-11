@@ -1,0 +1,8 @@
+html Views/ErrorHandler/Generic.cshtml
+@{
+    var code = ViewData["StatusCode"] ?? 0;
+    ViewData["Title"] = "Error";
+}
+<h1>Error (@code)</h1>
+<p>An error occurred. Please try again later.</p>
+<p><a asp-controller="Home" asp-action="Index">Return to homepage</a></p>
