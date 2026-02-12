@@ -8,108 +8,110 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.IO;
 
-var builder = WebApplication.CreateBuilder(args);
+var bildr = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-var connectionString = builder.Configuration.GetConnectionString("AuthDbContextConnection") ?? throw new InvalidOperationException("Connection string 'AuthDbContextConnection' not found.");
-builder.Services.AddDbContext<AuthDbContext>(options =>
-    options.UseSqlServer(connectionString));
+var connectionString = bildr.Configuration.GetConnectionString("AuthDbContextConnection") ?? throw new InvalidOperationException("Connection string 'AuthDbContextConnection' not found.");
+bildr.Services.AddDbContext<AuthDbContext>(
+    /*o is the one-letter abbreviation for "options"*/
+    o =>
+    o.UseSqlServer(connectionString));
 
-builder.Services.AddIdentity<IdentityUser, IdentityRole>(options =>
+bildr.Services.AddIdentity<IdentityUser, IdentityRole>(o =>
 {
     // Password settings
-    options.Password.RequireDigit = true;
-    options.Password.RequireLowercase = true;
-    options.Password.RequireUppercase = true;
-    options.Password.RequireNonAlphanumeric = true;
-    options.Password.RequiredLength = 12;
-    options.Password.RequiredUniqueChars = 1;
+    o.Password.RequireDigit = true;
+    o.Password.RequireLowercase = true;
+    o.Password.RequireUppercase = true;
+    o.Password.RequireNonAlphanumeric = true;
+    o.Password.RequiredLength = 12;
+    o.Password.RequiredUniqueChars = 1;
 
     // Lockout settings
-    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(1);
-    options.Lockout.MaxFailedAccessAttempts = 3;
-    options.Lockout.AllowedForNewUsers = true;
+    o.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(1);
+    o.Lockout.MaxFailedAccessAttempts = 3;
+    o.Lockout.AllowedForNewUsers = true;
 
     // User settings
-    options.User.RequireUniqueEmail = true;
+    o.User.RequireUniqueEmail = true;
 
     // Require confirmed account before sign-in (for password reset/2FA flows)
-    options.SignIn.RequireConfirmedAccount = true;
+    o.SignIn.RequireConfirmedAccount = true;
 })
     .AddEntityFrameworkStores<AuthDbContext>()
     .AddDefaultTokenProviders();
 
 // Persist data-protection keys (so encrypted data survives restarts)
-var keysFolder = Path.Combine(builder.Environment.ContentRootPath, "DataProtection-Keys");
-Directory.CreateDirectory(keysFolder);
-builder.Services.AddDataProtection()
-    .PersistKeysToFileSystem(new DirectoryInfo(keysFolder))
+var keyPath = Path.Combine(bildr.Environment.ContentRootPath, "DataProtection-Keys");
+Directory.CreateDirectory(keyPath);
+bildr.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keyPath))
     .SetApplicationName("BookwormsOnline");
 
 // reCAPTCHA service
-builder.Services.Configure<ReCaptchaSettings>(builder.Configuration.GetSection("reCAPTCHA"));
-builder.Services.AddHttpClient<ReCaptchaService>();
+bildr.Services.Configure<ReCaptchaSettings>(bildr.Configuration.GetSection("reCAPTCHA"));
+bildr.Services.AddHttpClient<ReCaptchaService>();
 
 // Global antiforgery validation for non-GET requests (adds defense-in-depth)
-builder.Services.AddControllersWithViews(options =>
+bildr.Services.AddControllersWithViews(options =>
 {
     options.Filters.Add(new Microsoft.AspNetCore.Mvc.AutoValidateAntiforgeryTokenAttribute());
 });
 
-builder.Services.AddSession(options =>
+bildr.Services.AddSession(o =>
 {
-    options.IdleTimeout = TimeSpan.FromMinutes(30); // increase to sensible value (was 1)
-    options.Cookie.HttpOnly = true;
-    options.Cookie.IsEssential = true;
-    options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
-    options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+    o.IdleTimeout = TimeSpan.FromMinutes(30); // increase to sensible value (was 1)
+    o.Cookie.HttpOnly = true;
+    o.Cookie.IsEssential = true;
+    o.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
+    o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
 });
 
 // Harden identity cookie
-builder.Services.ConfigureApplicationCookie(options =>
+bildr.Services.ConfigureApplicationCookie(o =>
 {
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
-    options.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
-    options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
-    options.SlidingExpiration = true;
-    options.LoginPath = "/Account/Login";
-    options.AccessDeniedPath = "/ErrorHandler/403";
+    o.Cookie.HttpOnly = true; // prevents SFA
+    o.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
+    o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+    o.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+    o.SlidingExpiration = true;
+    o.LoginPath = "/Account/Login";
+    o.AccessDeniedPath = "/ErrorHandler/403";
 });
 
 // NOTE: Do NOT register middleware type as singleton — UseMiddleware will construct it.
-var app = builder.Build();
+var ap = bildr.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+if (ap.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
+    ap.UseDeveloperExceptionPage();
 }
 else
 {
-    app.UseExceptionHandler("/Home/Error");
-    app.UseStatusCodePagesWithReExecute("/ErrorHandler/{0}");
-    app.UseHsts();
+    ap.UseExceptionHandler("/Home/Error");
+    ap.UseStatusCodePagesWithReExecute("/ErrorHandler/{0}");
+    ap.UseHsts();
 }
 
-app.UseHttpsRedirection();
-app.UseStaticFiles();
+ap.UseHttpsRedirection();
+ap.UseStaticFiles();
 
 // Add security headers middleware early (after static files is fine for dynamic responses)
-app.UseMiddleware<SecurityHeadersMiddleware>();
+ap.UseMiddleware<SecurityHeadersMiddleware>();
 
-app.UseRouting();
+ap.UseRouting();
 
-app.UseAuthentication();
-app.UseAuthorization();
+ap.UseAuthentication();
+ap.UseAuthorization();
 
-app.UseSession();
+ap.UseSession();
 
 // Add the single-session middleware (must run after authentication and session)
-app.UseMiddleware<SingleSessionMiddleware>();
+ap.UseMiddleware<SingleSessionMiddleware>();
 
-app.MapControllerRoute(
+ap.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
-app.Run();
+ap.Run();

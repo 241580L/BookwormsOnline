@@ -7,7 +7,7 @@ namespace BookwormsOnline.Migrations
 {
     public partial class RenameMemberPasswordToPasswordHash : Migration
     {
-        protected override void Up(MigrationBuilder migrationBuilder)
+        protected void Up2(MigrationBuilder migrationBuilder)
         {
             // Rename column in Members table from Password -> PasswordHash
             migrationBuilder.RenameColumn(
