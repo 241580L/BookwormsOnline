@@ -25,8 +25,8 @@
     <div class="form-group">
         <label asp-for="CreditCardNo"></label>
         <input asp-for="CreditCardNo" class="form-control" inputmode="numeric" />
-        <small class="form-text text-muted">Credit card is stored encrypted server-side.</small>
         <span asp-validation-for="CreditCardNo" class="text-danger"></span>
+        <small class="form-text text-muted">Credit card is stored encrypted server-side.</small>
     </div>
 
     <div class="form-group">
@@ -57,7 +57,7 @@
         <label asp-for="Password"></label>
         <input asp-for="Password" id="password" class="form-control" autocomplete="new-password" />
         <span asp-validation-for="Password" class="text-danger"></span>
-
+        <small class="form-text text-muted">Password must be at least 12 characters long and contain uppercase letters, lowercase letters, numbers, and special characters.</small>
         <div class="mt-2">
             <div class="progress" style="height:8px;">
                 <div id="pwStrengthBar" class="progress-bar" role="progressbar" style="width:0%"></div>
@@ -74,20 +74,58 @@
 
     <div class="form-group">
         <label asp-for="Photo">Photo (.JPG only)</label>
-        <input asp-for="Photo" type="file" accept=".jpg,image/jpeg" class="form-control-file" />
+        <input asp-for="Photo" type="file" accept=".jpg,image/jpeg" class="form-control-file" id="photoInput" />
         <span asp-validation-for="Photo" class="text-danger"></span>
     </div>
 
+    <!-- Google reCAPTCHA v3 - Token handled via JavaScript -->
     <input type="hidden" id="recaptcha_token" name="recaptcha_token" />
 
     <button type="submit" id="registerBtn" class="btn btn-primary mt-3">Register</button>
 </form>
 
 @section Scripts {
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js" integrity="sha512-M6m5MYI6w3W5YpP6Y5u7t5g0gXf0l59F2g6LU0cLqz94s1U7mXVR2WqQn2j0aY2oVq6B1rM1k0Qp0Gm7J+Jwog==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <!-- Google reCAPTCHA v3 -->
-    <script src="https://www.google.com/recaptcha/api.js?render=@siteKey"></script>
+    @* Include unobtrusive validation scripts *@
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
+    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
+
+    <script>
+        // Add custom creditcard validator for jQuery Validate
+        $.validator.addMethod("creditcard", function(value, element) {
+            if (!value) return true; // Allow empty for required rule to handle
+            
+            // Remove spaces and dashes
+            value = value.replace(/[\s-]/g, '');
+            
+            // Must be 13-19 digits
+            if (!/^\d{13,19}$/.test(value)) {
+                return false;
+            }
+            
+            // Luhn algorithm validation
+            var sum = 0;
+            var isEven = false;
+            
+            for (var i = value.length - 1; i >= 0; i--) {
+                var digit = parseInt(value.charAt(i), 10);
+                
+                if (isEven) {
+                    digit *= 2;
+                    if (digit > 9) {
+                        digit -= 9;
+                    }
+                }
+                
+                sum += digit;
+                isEven = !isEven;
+            }
+            
+            return (sum % 10) === 0;
+        }, "Please enter a valid credit card number.");
+    </script>
 
     <script>
         (function () {
@@ -101,6 +139,7 @@
                 var val = password.value || '';
                 var result = zxcvbn(val);
                 var score = result.score; // 0 - 4
+                console.log(score);
                 var pct = (score / 4) * 100;
                 strengthBar.style.width = pct + '%';
                 strengthBar.className = 'progress-bar';
@@ -124,32 +163,40 @@
             });
 
             // Client-side enforcement: require score >= 3 (Good) for enabling submit
-            form.addEventListener('submit', function (e) {
+            // For reCAPTCHA v3 token validation
+            async function submitFormWithRecaptcha() {
                 var val = password.value || '';
                 var res = zxcvbn(val);
                 if (res.score < 3) {
-                    e.preventDefault();
                     alert('Please choose a stronger password (min. 12 chars, mix of upper/lower, numbers and symbols).');
                     password.focus();
                     return false;
                 }
 
-                // Acquire reCAPTCHA token and set hidden input before submitting
-                grecaptcha.ready(function () {
-                    grecaptcha.execute('@siteKey', { action: 'register' }).then(function (token) {
-                        document.getElementById('recaptcha_token').value = token;
-                        form.submit();
-                    });
-                });
+                // Check if reCAPTCHA has been loaded
+                if (typeof grecaptcha === 'undefined') {
+                    alert('reCAPTCHA is still loading. Please try again.');
+                    return false;
+                }
+                
+                try {
+                    // For reCAPTCHA v3, execute and get the token asynchronously
+                    var recaptchaToken = await grecaptcha.execute('@siteKey', { action: 'register' });
+                    
+                    // Set the hidden token field
+                    document.getElementById('recaptcha_token').value = recaptchaToken;
+                    form.submit();
+                } catch (error) {
+                    console.error('reCAPTCHA error:', error);
+                    alert('An error occurred with reCAPTCHA. Please try again.');
+                    return false;
+                }
+            }
 
-                // prevent default until reCAPTCHA completes
+            registerBtn.addEventListener('click', function (e) {
                 e.preventDefault();
+                submitFormWithRecaptcha();
             });
         })();
     </script>
-
-    @* Include unobtrusive validation scripts if not already in layout *@
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/jquery-validation/dist/jquery.validate.min.js"></script>
-    <script src="~/lib/jquery-validation-unobtrusive/jquery.validate.unobtrusive.min.js"></script>
 }

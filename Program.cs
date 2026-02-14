@@ -52,6 +52,9 @@ bildr.Services.AddDataProtection()
 bildr.Services.Configure<ReCaptchaSettings>(bildr.Configuration.GetSection("reCAPTCHA"));
 bildr.Services.AddHttpClient<ReCaptchaService>();
 
+// Email service (for sending verification and password reset emails)
+bildr.Services.AddScoped<IEmailService, EmailService>();
+
 // Global antiforgery validation for non-GET requests (adds defense-in-depth)
 bildr.Services.AddControllersWithViews(options =>
 {
@@ -60,7 +63,7 @@ bildr.Services.AddControllersWithViews(options =>
 
 bildr.Services.AddSession(o =>
 {
-    o.IdleTimeout = TimeSpan.FromMinutes(30); // increase to sensible value (was 1)
+    o.IdleTimeout = TimeSpan.FromMinutes(1);
     o.Cookie.HttpOnly = true;
     o.Cookie.IsEssential = true;
     o.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
@@ -73,13 +76,13 @@ bildr.Services.ConfigureApplicationCookie(o =>
     o.Cookie.HttpOnly = true; // prevents SFA
     o.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
     o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
-    o.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+    o.ExpireTimeSpan = TimeSpan.FromMinutes(1);
     o.SlidingExpiration = true;
     o.LoginPath = "/Account/Login";
     o.AccessDeniedPath = "/ErrorHandler/403";
 });
 
-// NOTE: Do NOT register middleware type as singleton — UseMiddleware will construct it.
+// NOTE: Do NOT register middleware type as singleton ï¿½ UseMiddleware will construct it.
 var ap = bildr.Build();
 
 // Configure the HTTP request pipeline.

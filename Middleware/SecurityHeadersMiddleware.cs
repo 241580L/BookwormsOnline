@@ -16,39 +16,41 @@ namespace BookwormsOnline.Middleware
             _logger = logger;
         }
 
-        public async Task Invoke(HttpContext context)
+        public async Task Invoke(HttpContext ctx)
         {
             // Prevent MIME-sniffing
-            context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
 
             // Prevent clickjacking
-            context.Response.Headers["X-Frame-Options"] = "DENY";
+            ctx.Response.Headers["X-Frame-Options"] = "DENY";
 
             // Referrer policy
-            context.Response.Headers["Referrer-Policy"] = "no-referrer-when-downgrade";
+            ctx.Response.Headers["Referrer-Policy"] = "no-referrer-when-downgrade";
 
             // Permissions-Policy (formerly Feature-Policy) - restrict features as needed
-            context.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
+            ctx.Response.Headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()";
 
             // Basic CSP — conservative: allow same-origin scripts/styles and inline styles only for legacy.
             // Adjust nonces or hashes for stricter policy in production when using inline scripts/styles.
             var csp = "default-src 'self'; " +
                       "script-src 'self' https://www.google.com https://www.gstatic.com https://www.recaptcha.net 'unsafe-inline'; " +
-                      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-                      "img-src 'self' data:; " +
+                      "script-src-elem 'self' 'unsafe-inline' https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/4.4.2/zxcvbn.js https://www.google.com/recaptcha/api.js https://www.google.com https://www.gstatic.com https://www.recaptcha.net; " +
+                      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com; " +
+                      "img-src 'self' data: https://www.gstatic.com; " +
                       "font-src 'self' https://fonts.gstatic.com; " +
-                      "connect-src 'self' https://www.google.com https://www.recaptcha.net; " +
+                      "connect-src 'self' https://cdnjs.cloudflare.com/ajax/libs/zxcvbn/ https://www.google.com https://www.gstatic.com https://www.recaptcha.net http://localhost:* https://localhost:* ws://localhost:* wss://localhost:*; " +
+                      "frame-src https://google.com https://www.google.com https://www.recaptcha.net https://recaptcha.net; " +
                       "frame-ancestors 'none'; " +
                       "base-uri 'self';";
-            context.Response.Headers["Content-Security-Policy"] = csp;
+            ctx.Response.Headers["Content-Security-Policy"] = csp;
 
             // HSTS is added by UseHsts in Production pipeline earlier; including a short fallback here is harmless.
-            if (!context.Response.Headers.ContainsKey("Strict-Transport-Security"))
+            if (!ctx.Response.Headers.ContainsKey("Strict-Transport-Security"))
             {
-                context.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload";
+                ctx.Response.Headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload";
             }
 
-            await _next(context);
+            await _next(ctx);
         }
     }
 }

@@ -14,19 +14,21 @@ namespace BookwormsOnline.Controllers
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly SignInManager<IdentityUser> _signInManager;
-        private readonly AuthDbContext _context;
+        private readonly AuthDbContext _ctx;
         private readonly IWebHostEnvironment _webHostEnvironment;
         private readonly IDataProtector _protector;
         private readonly ReCaptchaService _reCaptchaService;
+        private readonly IEmailService _emailService;
 
-        public AccountController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, AuthDbContext context, IDataProtectionProvider dataProtectionProvider, IWebHostEnvironment webHostEnvironment, ReCaptchaService reCaptchaService)
+        public AccountController(UserManager<IdentityUser> userManager, SignInManager<IdentityUser> signInManager, AuthDbContext ctx, IDataProtectionProvider dataProtectionProvider, IWebHostEnvironment webHostEnvironment, ReCaptchaService reCaptchaService, IEmailService emailService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
-            _context = context;
+            _ctx = ctx;
             _webHostEnvironment = webHostEnvironment;
             _protector = dataProtectionProvider.CreateProtector("BookwormsOnline.CreditCard.v1");
             _reCaptchaService = reCaptchaService;
+            _emailService = emailService;
         }
 
         public IActionResult Register()
@@ -51,22 +53,67 @@ namespace BookwormsOnline.Controllers
 
                 if (result.Succeeded)
                 {
+                    // Generate email confirmation token and send email
+                    var emailConfirmationToken = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+                    var confirmationLink = Url.Action("ConfirmEmail", "Account", new { userId = user.Id, token = emailConfirmationToken }, Request.Scheme);
+
+                    // Send confirmation email
+                    var emailSubject = "Confirm Your Bookworms Online Account";
+                    var emailBody = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .button {{ display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Welcome to Bookworms Online!</h1>
+        </div>
+        <div class='content'>
+            <p>Hello {user.Email},</p>
+            <p>Thank you for registering with Bookworms Online. Please confirm your email address by clicking the button below:</p>
+            <p style='text-align: center; margin: 30px 0;'>
+                <a href='{confirmationLink}' class='button'>Confirm Email Address</a>
+            </p>
+            <p>Or copy and paste this link in your browser:</p>
+            <p>{confirmationLink}</p>
+            <p>This link will expire in 24 hours.</p>
+            <p>If you did not create this account, please ignore this email.</p>
+        </div>
+        <div class='footer'>
+            <p>&copy; 2026 Bookworms Online. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>";
+
+                    await _emailService.SendEmailAsync(user.Email, emailSubject, emailBody);
+
                     var audit = new Audit
                     {
                         UserId = user.Id,
                         Action = "Register",
                         Timestamp = DateTime.UtcNow,
-                        Details = $"User {user.Email} registered successfully."
+                        Details = $"User {user.Email} registered successfully. Confirmation email sent."
                     };
-                    _context.AuditLogs.Add(audit);
+                    _ctx.AuditLogs.Add(audit);
 
-                    var passwordHistory = new PasswordHistory
+                    var pwdHistory = new PasswordHistory
                     {
                         UserId = user.Id,
                         PasswordHash = user.PasswordHash,
                         CreatedDate = DateTime.UtcNow
                     };
-                    _context.PasswordHistories.Add(passwordHistory);
+                    _ctx.PasswordHistories.Add(pwdHistory);
 
                     string photoUrl = null;
 
@@ -121,8 +168,8 @@ namespace BookwormsOnline.Controllers
                         SessionId = HttpContext.Session.Id
                     };
 
-                    _context.Members.Add(member);
-                    await _context.SaveChangesAsync();
+                    _ctx.Members.Add(member);
+                    await _ctx.SaveChangesAsync();
 
                     return RedirectToAction("Login", "Account");
                 }
@@ -134,6 +181,39 @@ namespace BookwormsOnline.Controllers
             }
 
             return View(model);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ConfirmEmail(string userId, string token)
+        {
+            if (string.IsNullOrWhiteSpace(userId) || string.IsNullOrWhiteSpace(token))
+            {
+                return BadRequest("Invalid email confirmation request.");
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                return NotFound("User not found.");
+            }
+
+            var result = await _userManager.ConfirmEmailAsync(user, token);
+            if (result.Succeeded)
+            {
+                var audit = new Audit
+                {
+                    UserId = user.Id,
+                    Action = "Confirm Email",
+                    Timestamp = DateTime.UtcNow,
+                    Details = $"User {user.Email} confirmed their email address."
+                };
+                _ctx.AuditLogs.Add(audit);
+                await _ctx.SaveChangesAsync();
+
+                return RedirectToAction("Login", "Account");
+            }
+
+            return BadRequest("Email confirmation failed. The token may have expired.");
         }
 
         public IActionResult Login()
@@ -150,7 +230,7 @@ namespace BookwormsOnline.Controllers
                 var user = await _userManager.FindByEmailAsync(model.Email);
                 if (user != null)
                 {
-                    var member = _context.Members.FirstOrDefault(m => m.Email == model.Email);
+                    var member = _ctx.Members.FirstOrDefault(m => m.Email == model.Email);
                     if (member != null && !string.IsNullOrEmpty(member.SessionId))
                     {
                         // Invalidate previous session
@@ -168,7 +248,7 @@ namespace BookwormsOnline.Controllers
                     if (result.Succeeded)
                     {
                         member.SessionId = HttpContext.Session.Id;
-                        _context.SaveChanges();
+                        _ctx.SaveChanges();
 
                         var audit = new Audit
                         {
@@ -177,8 +257,8 @@ namespace BookwormsOnline.Controllers
                             Timestamp = DateTime.UtcNow,
                             Details = $"User {user.Email} logged in successfully."
                         };
-                        _context.AuditLogs.Add(audit);
-                        await _context.SaveChangesAsync();
+                        _ctx.AuditLogs.Add(audit);
+                        await _ctx.SaveChangesAsync();
 
                         HttpContext.Session.SetString("UserId", user.Id);
 
@@ -197,8 +277,8 @@ namespace BookwormsOnline.Controllers
                     Timestamp = DateTime.UtcNow,
                     Details = $"Failed login attempt for email {model.Email}."
                 };
-                _context.AuditLogs.Add(failedLoginAudit);
-                await _context.SaveChangesAsync();
+                _ctx.AuditLogs.Add(failedLoginAudit);
+                await _ctx.SaveChangesAsync();
 
                 ModelState.AddModelError(string.Empty, "Invalid login attempt.");
             }
@@ -240,8 +320,8 @@ namespace BookwormsOnline.Controllers
                     Timestamp = DateTime.UtcNow,
                     Details = $"User {user.Email} logged in with 2FA."
                 };
-                _context.AuditLogs.Add(audit);
-                await _context.SaveChangesAsync();
+                _ctx.AuditLogs.Add(audit);
+                await _ctx.SaveChangesAsync();
 
                 return RedirectToAction("Index", "Home");
             }
@@ -268,9 +348,48 @@ namespace BookwormsOnline.Controllers
                 if (user != null)
                 {
                     var token = await _userManager.GeneratePasswordResetTokenAsync(user);
-                    var passwordResetLink = Url.Action("ResetPassword", "Account", new { email = model.Email, token = token }, Request.Scheme);
+                    var pwdResetLink = Url.Action("ResetPassword", "Account", new { email = model.Email, token = token }, Request.Scheme);
 
-                    Console.WriteLine(passwordResetLink); // Cannot send email, so logging to console
+                    // Send password reset email
+                    var emailSubject = "Reset Your Bookworms Online Password";
+                    var emailBody = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .button {{ display: inline-block; padding: 10px 20px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 5px; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Password Reset Request</h1>
+        </div>
+        <div class='content'>
+            <p>Hello {user.Email},</p>
+            <p>We received a request to reset the password for your Bookworms Online account. Click the button below to reset your password:</p>
+            <p style='text-align: center; margin: 30px 0;'>
+                <a href='{pwdResetLink}' class='button'>Reset Password</a>
+            </p>
+            <p>Or copy and paste this link in your browser:</p>
+            <p>{pwdResetLink}</p>
+            <p>This link will expire in 24 hours.</p>
+            <p>If you did not request a password reset, please ignore this email and your password will remain unchanged.</p>
+        </div>
+        <div class='footer'>
+            <p>&copy; 2026 Bookworms Online. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>";
+
+                    await _emailService.SendEmailAsync(user.Email, emailSubject, emailBody);
 
                     return View("ForgotPasswordConfirmation");
                 }
@@ -301,11 +420,11 @@ namespace BookwormsOnline.Controllers
                     var result = await _userManager.ResetPasswordAsync(user, model.Token, model.Password);
                     if (result.Succeeded)
                     {
-                        var member = _context.Members.FirstOrDefault(m => m.Email == model.Email);
+                        var member = _ctx.Members.FirstOrDefault(m => m.Email == model.Email);
                         if (member != null)
                         {
                             member.PasswordLastChanged = DateTime.UtcNow;
-                            _context.SaveChanges();
+                            _ctx.SaveChanges();
                         }
                         return View("ResetPasswordConfirmation");
                     }
@@ -357,18 +476,52 @@ namespace BookwormsOnline.Controllers
                     return RedirectToAction("Login");
                 }
 
-                var member = _context.Members.FirstOrDefault(m => m.Email == user.Email);
-                if (member != null && member.PasswordLastChanged.AddDays(1) > DateTime.UtcNow)
+                var member = _ctx.Members.FirstOrDefault(m => m.Email == user.Email);
+                if (member != null && member.PasswordLastChanged.AddMinutes(1) > DateTime.UtcNow)
                 {
                     ModelState.AddModelError("", "You cannot change your password more than once every 24 hours.");
                     return View(model);
                 }
 
-                var passwordHistories = _context.PasswordHistories.Where(p => p.UserId == user.Id).OrderByDescending(p => p.CreatedDate).Take(2).ToList();
-                foreach (var passwordHistory in passwordHistories)
+                var pwdHistories = _ctx.PasswordHistories.Where(p => p.UserId == user.Id).OrderByDescending(p => p.CreatedDate).Take(2).ToList();
+                foreach (var pwdHistory in pwdHistories)
                 {
-                    var passwordVerificationResult = _userManager.PasswordHasher.VerifyHashedPassword(user, passwordHistory.PasswordHash, model.NewPassword);
-                    if (passwordVerificationResult == PasswordVerificationResult.Success)
+                    var pwdVerificationResult = _userManager.PasswordHasher.VerifyHashedPassword(user, pwdHistory.PasswordHash, model.NewPassword);
+                    if (pwdVerificationResult == PasswordVerificationResult.Success)
+                    // Send password change confirmation email
+                    var emailSubject = "Your Bookworms Online Password Has Been Changed";
+                    var emailBody = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Password Changed</h1>
+        </div>
+        <div class='content'>
+            <p>Hello {user.Email},</p>
+            <p>This is to confirm that your password for your Bookworms Online account has been successfully changed.</p>
+            <p>If you did not make this change or believe your account has been compromised, please contact our support team immediately.</p>
+        </div>
+        <div class='footer'>
+            <p>&copy; 2026 Bookworms Online. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>";
+
+                    await _emailService.SendEmailAsync(user.Email, emailSubject, emailBody);
+
                     {
                         ModelState.AddModelError("NewPassword", "You cannot reuse a password you have recently used.");
                         return View(model);
@@ -378,18 +531,18 @@ namespace BookwormsOnline.Controllers
                 var result = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
                 if (result.Succeeded)
                 {
-                    var passwordHistory = new PasswordHistory
+                    var pwdHistory = new PasswordHistory
                     {
                         UserId = user.Id,
                         PasswordHash = user.PasswordHash,
                         CreatedDate = DateTime.UtcNow
                     };
-                    _context.PasswordHistories.Add(passwordHistory);
+                    _ctx.PasswordHistories.Add(pwdHistory);
 
                     if (member != null)
                     {
                         member.PasswordLastChanged = DateTime.UtcNow;
-                        _context.SaveChanges();
+                        _ctx.SaveChanges();
                     }
 
                     var audit = new Audit
@@ -399,8 +552,8 @@ namespace BookwormsOnline.Controllers
                         Timestamp = DateTime.UtcNow,
                         Details = "User changed their password successfully."
                     };
-                    _context.AuditLogs.Add(audit);
-                    await _context.SaveChangesAsync();
+                    _ctx.AuditLogs.Add(audit);
+                    await _ctx.SaveChangesAsync();
 
                     await _signInManager.RefreshSignInAsync(user);
                     return RedirectToAction("Index", "Home");
@@ -419,11 +572,11 @@ namespace BookwormsOnline.Controllers
         public async Task<IActionResult> Logout()
         {
             var userId = _userManager.GetUserId(User);
-            var member = _context.Members.FirstOrDefault(m => m.Email == User.Identity.Name);
+            var member = _ctx.Members.FirstOrDefault(m => m.Email == User.Identity.Name);
             if (member != null)
             {
                 member.SessionId = null;
-                _context.SaveChanges();
+                _ctx.SaveChanges();
             }
             await _signInManager.SignOutAsync();
             HttpContext.Session.Clear();
@@ -435,19 +588,19 @@ namespace BookwormsOnline.Controllers
                 Timestamp = DateTime.UtcNow,
                 Details = $"User {User.Identity.Name} logged out successfully."
             };
-            _context.AuditLogs.Add(audit);
-            await _context.SaveChangesAsync();
+            _ctx.AuditLogs.Add(audit);
+            await _ctx.SaveChangesAsync();
 
             return RedirectToAction("Login", "Account");
         }
 
         public async Task SignOut(string sessionId)
         {
-            var member = _context.Members.FirstOrDefault(m => m.SessionId == sessionId);
+            var member = _ctx.Members.FirstOrDefault(m => m.SessionId == sessionId);
             if (member != null)
             {
                 member.SessionId = null;
-                _context.SaveChanges();
+                _ctx.SaveChanges();
             }
             await _signInManager.SignOutAsync();
         }

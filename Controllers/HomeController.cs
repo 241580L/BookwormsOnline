@@ -3,6 +3,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using BookwormsOnline.Data;
 using BookwormsOnline.Models;
+using BookwormsOnline.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
@@ -14,14 +15,14 @@ namespace BookwormsOnline.Controllers
     public class HomeController : Controller
     {
         private readonly ILogger<HomeController> _logger;
-        private readonly AuthDbContext _context;
+        private readonly AuthDbContext _ctx;
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IDataProtector _protector;
 
-        public HomeController(ILogger<HomeController> logger, AuthDbContext context, UserManager<IdentityUser> userManager, IDataProtectionProvider dataProtectionProvider)
+        public HomeController(ILogger<HomeController> logger, AuthDbContext ctx, UserManager<IdentityUser> userManager, IDataProtectionProvider dataProtectionProvider)
         {
             _logger = logger;
-            _context = context;
+            _ctx = ctx;
             _userManager = userManager;
             _protector = dataProtectionProvider.CreateProtector("BookwormsOnline.CreditCard.v1");
         }
@@ -35,7 +36,7 @@ namespace BookwormsOnline.Controllers
                 return View(); // safe fallback
             }
 
-            var member = _context.Members.FirstOrDefault(m => m.Email == user.Email);
+            var member = _ctx.Members.FirstOrDefault(m => m.Email == user.Email);
             if (member == null)
             {
                 return View();

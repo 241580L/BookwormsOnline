@@ -5,43 +5,57 @@
 
 @if (Model != null && Model.Member != null)
 {
-    <h1>Welcome, @Model.Member.FirstName!</h1>
+    <div class="row">
+        <div class="col-md-4 text-center">
+            @if (!string.IsNullOrEmpty(Model.Member.PhotoURL))
+            {
+                <img src="@Model.Member.PhotoURL" alt="User Photo" class="img-fluid rounded-circle" style="max-width: 200px; border: 1px solid #ddd; padding: 5px;" />
+            }
+            else
+            {
+                // Placeholder image or icon
+                <svg class="img-fluid rounded-circle" width="200" height="200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Placeholder: User Photo" preserveAspectRatio="xMidYMid slice" focusable="false"><title>Placeholder</title><rect width="100%" height="100%" fill="#868e96"></rect><text x="50%" y="50%" fill="#dee2e6" dy=".3em">User Photo</text></svg>
+            }
+            <h2 class="mt-3">@Model.Member.FirstName @Model.Member.LastName</h2>
+            <p class="text-muted">@Model.Member.Email</p>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Your Information</h4>
+                </div>
+                <div class="card-body">
+                    <dl class="row">
+                        <dt class="col-sm-4">First Name</dt>
+                        <dd class="col-sm-8">@Model.Member.FirstName</dd>
 
-    <div>
-        <h2>Your Information</h2>
-        <dl class="row">
-            <dt class="col-sm-3">First Name</dt>
-            <dd class="col-sm-9">@Model.Member.FirstName</dd>
+                        <dt class="col-sm-4">Last Name</dt>
+                        <dd class="col-sm-8">@Model.Member.LastName</dd>
 
-            <dt class="col-sm-3">Last Name</dt>
-            <dd class="col-sm-9">@Model.Member.LastName</dd>
+                        <dt class="col-sm-4">Credit Card No</dt>
+                        <dd class="col-sm-8">@Model.DecryptedCreditCardNo</dd>
 
-            <dt class="col-sm-3">Credit Card No</dt>
-            <dd class="col-sm-9">@Model.DecryptedCreditCardNo</dd>
+                        <dt class="col-sm-4">Mobile No</dt>
+                        <dd class="col-sm-8">@Model.Member.MobileNo</dd>
 
-            <dt class="col-sm-3">Mobile No</dt>
-            <dd class="col-sm-9">@Model.Member.MobileNo</dd>
+                        <dt class="col-sm-4">Billing Address</dt>
+                        <dd class="col-sm-8">@Model.Member.BillingAddress</dd>
 
-            <dt class="col-sm-3">Billing Address</dt>
-            <dd class="col-sm-9">@Model.Member.BillingAddress</dd>
-
-            <dt class="col-sm-3">Shipping Address</dt>
-            <dd class="col-sm-9">@Model.Member.ShippingAddress</dd>
-
-            <dt class="col-sm-3">Email</dt>
-            <dd class="col-sm-9">@Model.Member.Email</dd>
-        </dl>
-
-        @if (!string.IsNullOrEmpty(Model.Member.PhotoURL))
-        {
-            <img src="@Model.Member.PhotoURL" alt="User Photo" style="max-width: 200px;" />
-        }
+                        <dt class="col-sm-4">Shipping Address</dt>
+                        <dd class="col-sm-8">@Model.Member.ShippingAddress</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
     </div>
 }
 else
 {
     <div class="text-center">
-        <h1 class="display-4">Welcome</h1>
-        <p>Please log in to see your information.</p>
+        <h1 class="display-4">Welcome to BookwormsOnline</h1>
+        <p class="lead">Your one-stop shop for all your favorite books.</p>
+        <hr class="my-4">
+        <p>Please log in to see your information and start shopping.</p>
+        <a class="btn btn-primary btn-lg" href="@Url.Action("Login", "Account")" role="button">Login</a>
     </div>
 }

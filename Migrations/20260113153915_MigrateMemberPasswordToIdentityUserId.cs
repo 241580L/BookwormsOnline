@@ -1,14 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace BookwormsOnline.Migrations
 {
-    // add IdentityUserId to Members
-    // migrate data from Password to IdentityUserId by matching Emails
-    // drops Password
+    /// <inheritdoc />
     public partial class MigrateMemberPasswordToIdentityUserId : Migration
     {
+        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Add IdentityUserId as nullable first
@@ -61,6 +60,7 @@ WHERE IdentityUserId IS NULL
                 table: "Members");
         }
 
+        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             // Re-create Password column (nullable to avoid data loss on down)

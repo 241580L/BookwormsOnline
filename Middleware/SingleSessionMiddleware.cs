@@ -23,27 +23,27 @@ namespace BookwormsOnline.Middleware
             _logger = logger;
         }
 
-        public async Task InvokeAsync(HttpContext context)
+        public async Task InvokeAsync(HttpContext ctx)
         {
-            if (context.User?.Identity?.IsAuthenticated == true)
+            if (ctx.User?.Identity?.IsAuthenticated == true)
             {
-                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (!string.IsNullOrEmpty(userId))
                 {
                     try
                     {
-                        var db = context.RequestServices.GetService(typeof(AuthDbContext)) as AuthDbContext;
+                        var db = ctx.RequestServices.GetService(typeof(AuthDbContext)) as AuthDbContext;
                         if (db != null)
                         {
                             var member = await db.Members.FirstOrDefaultAsync(m => m.IdentityUserId == userId);
-                            var currentSessionId = context.Session.Id;
+                            var currentSessionId = ctx.Session.Id;
                             if (member != null && !string.IsNullOrEmpty(member.SessionId) && member.SessionId != currentSessionId)
                             {
                                 // Sign out this request because user's stored session does not match (another login exists).
                                 _logger.LogInformation("Signing out user {UserId} due to session mismatch.", userId);
-                                await context.SignOutAsync(IdentityConstants.ApplicationScheme);
-                                context.Session.Clear();
-                                context.Response.Redirect("/Account/Login?message=SessionExpired");
+                                await ctx.SignOutAsync(IdentityConstants.ApplicationScheme);
+                                ctx.Session.Clear();
+                                ctx.Response.Redirect("/Account/Login?message=SessionExpired");
                                 return;
                             }
                         }
@@ -55,7 +55,7 @@ namespace BookwormsOnline.Middleware
                     }
                 }
             }
-            await _next(context);
+            await _next(ctx);
         }
     }
 }
