@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Cryptography;
 using System.IO;
 
 namespace BookwormsOnline.Controllers
@@ -107,10 +108,13 @@ namespace BookwormsOnline.Controllers
                     };
                     _ctx.AuditLogs.Add(audit);
 
+                    var initialSalt = GenerateSalt();
+                    var initialHash = HashPasswordWithSalt(model.Password, initialSalt);
                     var pwdHistory = new PasswordHistory
                     {
                         UserId = user.Id,
-                        PasswordHash = user.PasswordHash,
+                        PasswordHash = initialHash,
+                        Salt = initialSalt,
                         CreatedDate = DateTime.UtcNow
                     };
                     _ctx.PasswordHistories.Add(pwdHistory);
@@ -266,6 +270,41 @@ namespace BookwormsOnline.Controllers
                     }
                     if (result.RequiresTwoFactor)
                     {
+                        // Send 2FA code via email
+                        var code = await _userManager.GenerateUserTokenAsync(user, _userManager.Options.Tokens.EmailConfirmationTokenProvider, "LoginWith2fa");
+                        var emailBody = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <style>
+        body {{ font-family: Arial, sans-serif; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
+        .content {{ padding: 20px; background-color: #f9f9f9; }}
+        .code {{ font-size: 24px; font-weight: bold; text-align: center; color: #4CAF50; margin: 20px 0; }}
+        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
+    </style>
+</head>
+<body>
+    <div class='container'>
+        <div class='header'>
+            <h1>Login Verification</h1>
+        </div>
+        <div class='content'>
+            <p>Hello {user.Email},</p>
+            <p>Someone tried to log in to your Bookworms Online account. Your verification code is:</p>
+            <div class='code'>{code}</div>
+            <p>This code will expire in 15 minutes.</p>
+            <p>If you did not attempt to log in, please ignore this email and your account will remain secure.</p>
+        </div>
+        <div class='footer'>
+            <p>&copy; 2026 Bookworms Online. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>";
+                        await _emailService.SendEmailAsync(user.Email, "Login Verification Code", emailBody);
                         return RedirectToAction(nameof(LoginWith2fa));
                     }
                 }
@@ -307,9 +346,10 @@ namespace BookwormsOnline.Controllers
                 throw new InvalidOperationException($"Unable to load two-factor authentication user.");
             }
 
-            var authenticatorCode = model.TwoFactorCode.Replace(" ", string.Empty).Replace("-", string.Empty);
+            var emailCode = model.TwoFactorCode.Replace(" ", string.Empty).Replace("-", string.Empty);
 
-            var result = await _signInManager.TwoFactorAuthenticatorSignInAsync(authenticatorCode, false, model.RememberMachine);
+            // Verify the email code
+            var result = await _signInManager.TwoFactorSignInAsync(_userManager.Options.Tokens.EmailConfirmationTokenProvider, emailCode, false, model.RememberMachine);
 
             if (result.Succeeded)
             {
@@ -327,7 +367,7 @@ namespace BookwormsOnline.Controllers
             }
             else
             {
-                ModelState.AddModelError(string.Empty, "Invalid authenticator code.");
+                ModelState.AddModelError(string.Empty, "Invalid email code. Please check your email.");
                 return View(model);
             }
         }
@@ -486,42 +526,11 @@ namespace BookwormsOnline.Controllers
                 var pwdHistories = _ctx.PasswordHistories.Where(p => p.UserId == user.Id).OrderByDescending(p => p.CreatedDate).Take(2).ToList();
                 foreach (var pwdHistory in pwdHistories)
                 {
-                    var pwdVerificationResult = _userManager.PasswordHasher.VerifyHashedPassword(user, pwdHistory.PasswordHash, model.NewPassword);
-                    if (pwdVerificationResult == PasswordVerificationResult.Success)
-                    // Send password change confirmation email
-                    var emailSubject = "Your Bookworms Online Password Has Been Changed";
-                    var emailBody = $@"
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='UTF-8'>
-    <style>
-        body {{ font-family: Arial, sans-serif; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background-color: #4CAF50; color: white; padding: 20px; text-align: center; }}
-        .content {{ padding: 20px; background-color: #f9f9f9; }}
-        .footer {{ text-align: center; padding: 20px; color: #666; font-size: 12px; }}
-    </style>
-</head>
-<body>
-    <div class='container'>
-        <div class='header'>
-            <h1>Password Changed</h1>
-        </div>
-        <div class='content'>
-            <p>Hello {user.Email},</p>
-            <p>This is to confirm that your password for your Bookworms Online account has been successfully changed.</p>
-            <p>If you did not make this change or believe your account has been compromised, please contact our support team immediately.</p>
-        </div>
-        <div class='footer'>
-            <p>&copy; 2026 Bookworms Online. All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>";
+                    if (string.IsNullOrEmpty(pwdHistory?.Salt) || string.IsNullOrEmpty(pwdHistory.PasswordHash))
+                        continue;
 
-                    await _emailService.SendEmailAsync(user.Email, emailSubject, emailBody);
-
+                    var candidateHash = HashPasswordWithSalt(model.NewPassword, pwdHistory.Salt);
+                    if (SecureEquals(candidateHash, pwdHistory.PasswordHash))
                     {
                         ModelState.AddModelError("NewPassword", "You cannot reuse a password you have recently used.");
                         return View(model);
@@ -531,10 +540,13 @@ namespace BookwormsOnline.Controllers
                 var result = await _userManager.ChangePasswordAsync(user, model.CurrentPassword, model.NewPassword);
                 if (result.Succeeded)
                 {
+                    var newSalt = GenerateSalt();
+                    var newHash = HashPasswordWithSalt(model.NewPassword, newSalt);
                     var pwdHistory = new PasswordHistory
                     {
                         UserId = user.Id,
-                        PasswordHash = user.PasswordHash,
+                        PasswordHash = newHash,
+                        Salt = newSalt,
                         CreatedDate = DateTime.UtcNow
                     };
                     _ctx.PasswordHistories.Add(pwdHistory);
@@ -603,6 +615,43 @@ namespace BookwormsOnline.Controllers
                 _ctx.SaveChanges();
             }
             await _signInManager.SignOutAsync();
+        }
+
+        private string GenerateSalt(int size = 16)
+        {
+            var saltBytes = new byte[size];
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                rng.GetBytes(saltBytes);
+            }
+            return Convert.ToBase64String(saltBytes);
+        }
+
+        private string HashPasswordWithSalt(string password, string salt, int iterations = 100_000, int hashByteSize = 32)
+        {
+            var saltBytes = Convert.FromBase64String(salt);
+            using (var pbkdf2 = new Rfc2898DeriveBytes(password, saltBytes, iterations, HashAlgorithmName.SHA256))
+            {
+                var hash = pbkdf2.GetBytes(hashByteSize);
+                return Convert.ToBase64String(hash);
+            }
+        }
+
+        private bool SecureEquals(string aBase64, string bBase64)
+        {
+            if (string.IsNullOrEmpty(aBase64) || string.IsNullOrEmpty(bBase64))
+                return false;
+
+            try
+            {
+                var a = Convert.FromBase64String(aBase64);
+                var b = Convert.FromBase64String(bBase64);
+                return CryptographicOperations.FixedTimeEquals(a, b);
+            }
+            catch
+            {
+                return false;
+            }
         }
     }
 }

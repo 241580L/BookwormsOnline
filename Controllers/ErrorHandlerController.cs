@@ -7,6 +7,7 @@ namespace BookwormsOnline.Controllers
         [Route("ErrorHandler/{statusCode}")]
         public IActionResult HttpStatusCodeHandler(int statusCode)
         {
+            string viewName = statusCode.ToString();
             switch (statusCode)
             {
                 case 404:
@@ -29,11 +30,13 @@ namespace BookwormsOnline.Controllers
                     break;
                 default:
                     ViewBag.ErrorMessage = $"Sorry, an error occured.";
+                    viewName = "Generic";
                     break;
             }
+
             ViewBag.ErrorMessage += $"\nError Code: {statusCode}";
 
-            return View("Error");
+            return View(viewName);
         }
     }
 }

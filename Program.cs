@@ -86,14 +86,14 @@ bildr.Services.ConfigureApplicationCookie(o =>
 var ap = bildr.Build();
 
 // Configure the HTTP request pipeline.
-if (ap.Environment.IsDevelopment())
+// Always enable custom status code pages first so all error codes are handled
+ap.UseStatusCodePagesWithReExecute("/ErrorHandler/{0}");
+
+// Use exception handler in all environments to show custom error pages instead of raw exceptions
+ap.UseExceptionHandler("/Home/Error");
+
+if (!ap.Environment.IsDevelopment())
 {
-    ap.UseDeveloperExceptionPage();
-}
-else
-{
-    ap.UseExceptionHandler("/Home/Error");
-    ap.UseStatusCodePagesWithReExecute("/ErrorHandler/{0}");
     ap.UseHsts();
 }
 

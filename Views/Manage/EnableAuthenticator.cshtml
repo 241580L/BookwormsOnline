@@ -1,19 +1,17 @@
 @model BookwormsOnline.ViewModels.EnableAuthenticatorViewModel
 
-<h1>Enable Authenticator</h1>
+<h1>Enable Email Two-Factor Authentication</h1>
 
 <div>
-    <p>Please enter the code from your authenticator app.</p>
-    <p>Shared Key: @Model.SharedKey</p>
-    <p>Authenticator Uri: @Model.AuthenticatorUri</p>
+    <p>A verification code has been sent to your email address. Please enter it below to enable two-factor authentication.</p>
 
     <form asp-controller="Manage" asp-action="EnableAuthenticator" method="post">
         <div asp-validation-summary="All" class="text-danger"></div>
         <div class="form-group">
             <label asp-for="Code"></label>
-            <input asp-for="Code" class="form-control" />
+            <input asp-for="Code" class="form-control" autocomplete="off" />
             <span asp-validation-for="Code" class="text-danger"></span>
         </div>
-        <button type="submit" class="btn btn-primary">Verify</button>
+        <button type="submit" class="btn btn-primary">Verify Code</button>
     </form>
 </div>

@@ -15,8 +15,8 @@
     else
     {
         <p>Your account does not have two-factor authentication enabled.</p>
-        <form asp-controller="Manage" asp-action="EnableAuthenticator" method="post">
-            <button type="submit" class="btn btn-primary">Enable Authenticator</button>
+        <form asp-controller="Manage" asp-action="EnableAuthenticator" method="get">
+            <button type="submit" class="btn btn-primary">Enable Email 2FA</button>
         </form>
     }
 </div>

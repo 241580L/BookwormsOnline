@@ -71,6 +71,27 @@
             &copy; 2025 - BookwormsOnline - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
     </footer>
+
+    <!-- Session Timeout Warning Modal -->
+    <div class="modal fade" id="sessionTimeoutModal" tabindex="-1" role="dialog" aria-labelledby="sessionTimeoutLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title" id="sessionTimeoutLabel">Session Timeout Warning</h5>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Your session is about to expire due to inactivity.</strong></p>
+                    <p>You will be automatically logged out in <span id="countdownTimer">60</span> seconds.</p>
+                    <p>Click <strong>Continue Session</strong> to remain logged in, or let the timer expire to log out.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="logoutNowBtn" data-bs-dismiss="modal">Logout Now</button>
+                    <button type="button" class="btn btn-primary" id="continueSessionBtn" data-bs-dismiss="modal">Continue Session</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>

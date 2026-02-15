@@ -46,9 +46,10 @@ namespace BookwormsOnline.Services
 
                 // Validate configuration
                 if (string.IsNullOrWhiteSpace(smtpHost) || string.IsNullOrWhiteSpace(smtpPort) ||
-                    string.IsNullOrWhiteSpace(smtpUsername) || string.IsNullOrWhiteSpace(fromEmail))
+                    string.IsNullOrWhiteSpace(smtpUsername) || string.IsNullOrWhiteSpace(smtpPassword) ||
+                    string.IsNullOrWhiteSpace(fromEmail))
                 {
-                    _logger.LogError("Email configuration is incomplete. Please check appsettings.json");
+                    _logger.LogError("Email configuration is incomplete. Please check appsettings.json (SmtpHost, SmtpPort, SmtpUsername, SmtpPassword, FromEmail)");
                     return false;
                 }
 
@@ -61,6 +62,10 @@ namespace BookwormsOnline.Services
                 // Create SMTP client
                 using (var smtpClient = new SmtpClient(smtpHost, port))
                 {
+                    // Ensure we explicitly disable default credentials so provided credentials are used
+                    smtpClient.UseDefaultCredentials = false;
+                    smtpClient.DeliveryMethod = SmtpDeliveryMethod.Network;
+
                     // Configure SMTP client
                     smtpClient.Credentials = new NetworkCredential(smtpUsername, smtpPassword);
                     smtpClient.EnableSsl = enableSsl != null && enableSsl.Equals("true", StringComparison.OrdinalIgnoreCase);
