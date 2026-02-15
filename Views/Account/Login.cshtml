@@ -6,14 +6,37 @@
     var message = Context.Request.Query["message"].ToString();
 }
 
-@if (message == "SessionExpired")
+@if (!string.IsNullOrEmpty(message))
 {
-    <div class="alert alert-warning alert-dismissible fade show" role="alert">
-        <strong>Session Expired:</strong> Your session has expired due to inactivity. Please log in again.
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
+    if (message == "SessionExpired")
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>Session Expired:</strong> Your session has expired due to inactivity. Please log in again.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    else if (message == "ConcurrentSession")
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            <strong>Session Invalidated:</strong> The same account has been logged in on a different device. You were signed out.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    else if (message == "LogoutSuccess")
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Logout successful!</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    else if (message == "ConfirmEmailSent")
+    {
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            A confirmation email has been sent. Please check your inbox and click the confirmation link before signing in.
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
 }
-
 <form asp-controller="Account" asp-action="Login" method="post">
     <div asp-validation-summary="All" class="text-danger"></div>
 

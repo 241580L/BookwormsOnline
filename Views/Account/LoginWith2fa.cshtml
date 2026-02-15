@@ -1,5 +1,10 @@
 @model BookwormsOnline.ViewModels.LoginWith2faViewModel
 
+@if (ViewBag.Message != null)
+{
+    <div class="alert alert-success">@ViewBag.Message</div>
+}
+
 <h1>Two-Factor Authentication</h1>
 <hr />
 <p>A verification code has been sent to your email address. Please enter it below to complete your login.</p>
@@ -23,6 +28,10 @@
             <div class="form-group">
                 <button type="submit" class="btn btn-primary">Log in</button>
             </div>
+        </form>
+        <form asp-action="Resend2fa" method="post" class="mt-2">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="btn btn-link">Resend code</button>
         </form>
     </div>
 </div>

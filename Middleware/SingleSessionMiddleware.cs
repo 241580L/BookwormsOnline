@@ -25,6 +25,16 @@ namespace BookwormsOnline.Middleware
 
         public async Task InvokeAsync(HttpContext ctx)
         {
+            // Skip checks for auth and error endpoints to avoid redirect loops
+            var path = ctx.Request.Path.HasValue ? ctx.Request.Path.Value.ToLowerInvariant() : string.Empty;
+            if (!string.IsNullOrEmpty(path))
+            {
+                if (path.StartsWith("/account") || path.StartsWith("/errorhandler") || path.StartsWith("/home/error") || path.StartsWith("/favicon.ico") || path.StartsWith("/css") || path.StartsWith("/js") || path.StartsWith("/lib") || path.StartsWith("/images"))
+                {
+                    await _next(ctx);
+                    return;
+                }
+            }
             if (ctx.User?.Identity?.IsAuthenticated == true)
             {
                 var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -43,7 +53,8 @@ namespace BookwormsOnline.Middleware
                                 _logger.LogInformation("Signing out user {UserId} due to session mismatch.", userId);
                                 await ctx.SignOutAsync(IdentityConstants.ApplicationScheme);
                                 ctx.Session.Clear();
-                                ctx.Response.Redirect("/Account/Login?message=SessionExpired");
+                                // Distinguish concurrent-session sign-outs from inactivity expiries
+                                ctx.Response.Redirect("/Account/Login?message=ConcurrentSession");
                                 return;
                             }
                         }

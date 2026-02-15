@@ -53,6 +53,7 @@
         // Hide modal if visible
         if (timeoutModal) {
             timeoutModal.hide();
+            return document.querySelector('form[action="/Account/Logout"]') !== null;
         }
 
         if (!isUserAuthenticated()) {
@@ -94,19 +95,43 @@
 
     // Logout user
     function performLogout() {
-        // Hide modal first
+        // Hide modal and disable user interaction
         if (timeoutModal) {
             timeoutModal.hide();
         }
-
-        // Submit logout form
+        document.body.style.pointerEvents = 'none';
+        document.body.style.opacity = '0.5';
+        //const logoutForm = document.querySelector('form[action="/Account/Logout"]');
         const logoutForm = document.querySelector('form[asp-controller="Account"][asp-action="Logout"]');
+        let token = null;
+        
         if (logoutForm) {
-            logoutForm.submit();
-        } else {
-            // Fallback: redirect to login
-            window.location.href = '/Account/Login?message=SessionExpired';
+            const tokenInput = logoutForm.querySelector('input[name="__RequestVerificationToken"]');
+            if (tokenInput) {
+                token = tokenInput.value;
+            }
         }
+
+        // Make async POST request to logout endpoint
+        const logoutData = new FormData();
+        if (token) {
+            logoutData.append('__RequestVerificationToken', token);
+        }
+
+        fetch('/Account/Logout', {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: logoutData
+        })
+            .then(function (response) {
+                // Redirect to login with timeout message
+                window.location.href = '/Account/Login?message=SessionExpired';
+            })
+            .catch(function (error) {
+                console.error('Logout error:', error);
+                // Fallback: redirect to login anyway
+                window.location.href = '/Account/Login?message=SessionExpired';
+            });
     }
 
     // Handle continue session button click

@@ -42,6 +42,7 @@
                             </li>
                             <li class="nav-item">
                                 <form class="form-inline" asp-controller="Account" asp-action="Logout" method="post">
+                                    @Html.AntiForgeryToken()
                                     <button type="submit" class="nav-link btn btn-link text-dark" onclick="return confirm('Are you sure you want to logout?');">Logout</button>
                                 </form>
                             </li>

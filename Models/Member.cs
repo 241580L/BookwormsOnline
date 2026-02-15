@@ -6,25 +6,46 @@ namespace BookwormsOnline.Models
     {
         public int Id { get; set; }
 
-        [Required, MaxLength(100)]
+        /// <summary>
+        /// Encrypted first name. Max encrypted size: 200 chars for plaintext 50 chars max
+        /// </summary>
+        [Required, MaxLength(500)]
         public string FirstName { get; set; } = null!;
 
-        [Required, MaxLength(100)]
+        /// <summary>
+        /// Encrypted last name. Max encrypted size: 200 chars for plaintext 50 chars max
+        /// </summary>
+        [Required, MaxLength(500)]
         public string LastName { get; set; } = null!;
 
-        [Required, CreditCard]
+        /// <summary>
+        /// Encrypted credit card number. Max encrypted size: 300 chars for plaintext 19 chars max
+        /// </summary>
+        [Required, MaxLength(500)]
         public string CreditCardNo { get; set; } = null!;
 
-        [Required, Phone]
+        /// <summary>
+        /// Encrypted mobile number. Max encrypted size: 200 chars for plaintext 20 chars max
+        /// </summary>
+        [Required, MaxLength(500)]
         public string MobileNo { get; set; } = null!;
 
-        [Required, MaxLength(255)]
+        /// <summary>
+        /// Encrypted billing address. Max encrypted size: 600 chars for plaintext 200 chars max
+        /// </summary>
+        [Required, MaxLength(1000)]
         public string BillingAddress { get; set; } = null!;
 
-        [Required, MaxLength(255)]
+        /// <summary>
+        /// Encrypted shipping address. Max encrypted size: 600 chars for plaintext 200 chars max
+        /// </summary>
+        [Required, MaxLength(1000)]
         public string ShippingAddress { get; set; } = null!;
 
-        [Required, EmailAddress]
+        /// <summary>
+        /// Encrypted email address. Max encrypted size: 300 chars for plaintext 100 chars max
+        /// </summary>
+        [Required, MaxLength(500)]
         public string Email { get; set; } = null!;
 
         // Link to Identity user instead of storing password/hash here.

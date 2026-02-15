@@ -1,8 +1,12 @@
+using BookwormsOnline.Data;
+using BookwormsOnline.Models;
 using BookwormsOnline.Services;
 using BookwormsOnline.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace BookwormsOnline.Controllers
@@ -12,11 +16,13 @@ namespace BookwormsOnline.Controllers
     {
         private readonly UserManager<IdentityUser> _userManager;
         private readonly IEmailService _emailService;
+        private readonly AuthDbContext _context;
 
-        public ManageController(UserManager<IdentityUser> userManager, IEmailService emailService)
+        public ManageController(UserManager<IdentityUser> userManager, IEmailService emailService, AuthDbContext context)
         {
             _userManager = userManager;
             _emailService = emailService;
+            _context = context;
         }
 
         public async Task<IActionResult> Index()
@@ -35,8 +41,8 @@ namespace BookwormsOnline.Controllers
         public async Task<IActionResult> EnableAuthenticator()
         {
             var user = await _userManager.GetUserAsync(User);
-            // Generate email verification code
-            var code = await _userManager.GenerateUserTokenAsync(user, _userManager.Options.Tokens.EmailConfirmationTokenProvider, "EmailVerification");
+            // Generate email verification code (short numeric via Email two-factor provider)
+            var code = await _userManager.GenerateTwoFactorTokenAsync(user, "Email");
             
             // Send email with verification code
             var emailBody = $@"
@@ -85,8 +91,8 @@ namespace BookwormsOnline.Controllers
             if (ModelState.IsValid)
             {
                 var user = await _userManager.GetUserAsync(User);
-                // Verify the email code sent to user's email
-                var succeeded = await _userManager.VerifyUserTokenAsync(user, _userManager.Options.Tokens.EmailConfirmationTokenProvider, "EmailVerification", model.Code);
+                // Verify the email code sent to user's email (using Email two-factor provider)
+                var succeeded = await _userManager.VerifyTwoFactorTokenAsync(user, "Email", model.Code);
                 if (succeeded)
                 {
                     await _userManager.SetTwoFactorEnabledAsync(user, true);
@@ -109,6 +115,32 @@ namespace BookwormsOnline.Controllers
             var recoveryCodes = await _userManager.GenerateNewTwoFactorRecoveryCodesAsync(user, 10);
             var model = new GenerateRecoveryCodesViewModel { RecoveryCodes = recoveryCodes.ToArray() };
             return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Disable2fa()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return RedirectToAction(nameof(Index));
+            }
+
+            await _userManager.SetTwoFactorEnabledAsync(user, false);
+
+            var audit = new Audit
+            {
+                UserId = user.Id,
+                Action = "Disabled 2FA",
+                Timestamp = DateTime.UtcNow,
+                Details = $"User {user.Email} disabled two-factor authentication."
+            };
+            _context.AuditLogs.Add(audit);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Two-factor authentication has been disabled.";
+            return RedirectToAction(nameof(Index));
         }
     }
 }

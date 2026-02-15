@@ -55,6 +55,9 @@ bildr.Services.AddHttpClient<ReCaptchaService>();
 // Email service (for sending verification and password reset emails)
 bildr.Services.AddScoped<IEmailService, EmailService>();
 
+// Personal-data encryption service
+bildr.Services.AddSingleton<IEncryptionService, EncryptionService>();
+
 // Global antiforgery validation for non-GET requests (adds defense-in-depth)
 bildr.Services.AddControllersWithViews(options =>
 {
@@ -73,7 +76,7 @@ bildr.Services.AddSession(o =>
 // Harden identity cookie
 bildr.Services.ConfigureApplicationCookie(o =>
 {
-    o.Cookie.HttpOnly = true; // prevents SFA
+    o.Cookie.HttpOnly = true; // prevent JavaScript access and hence XSS attacks
     o.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
     o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
     o.ExpireTimeSpan = TimeSpan.FromMinutes(1);

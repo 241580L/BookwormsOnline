@@ -12,44 +12,50 @@
     <div asp-validation-summary="All" class="text-danger"></div>
     <div class="form-group">
         <label asp-for="FirstName"></label>
-        <input asp-for="FirstName" class="form-control" />
+        <input asp-for="FirstName" class="form-control" maxlength="50" />
+        <small class="form-text text-muted">Maximum 50 characters</small>
         <span asp-validation-for="FirstName" class="text-danger"></span>
     </div>
 
     <div class="form-group">
         <label asp-for="LastName"></label>
-        <input asp-for="LastName" class="form-control" />
+        <input asp-for="LastName" class="form-control" maxlength="50" />
+        <small class="form-text text-muted">Maximum 50 characters</small>
         <span asp-validation-for="LastName" class="text-danger"></span>
     </div>
 
     <div class="form-group">
         <label asp-for="CreditCardNo"></label>
-        <input asp-for="CreditCardNo" class="form-control" inputmode="numeric" />
+        <input asp-for="CreditCardNo" class="form-control" inputmode="numeric" maxlength="19" />
+        <small class="form-text text-muted">Credit card is stored encrypted server-side. 13-19 digits.</small>
         <span asp-validation-for="CreditCardNo" class="text-danger"></span>
-        <small class="form-text text-muted">Credit card is stored encrypted server-side.</small>
     </div>
 
     <div class="form-group">
         <label asp-for="MobileNo"></label>
-        <input asp-for="MobileNo" class="form-control" />
+        <input asp-for="MobileNo" class="form-control" maxlength="20" />
+        <small class="form-text text-muted">Maximum 20 characters. Encrypted server-side.</small>
         <span asp-validation-for="MobileNo" class="text-danger"></span>
     </div>
 
     <div class="form-group">
         <label asp-for="BillingAddress"></label>
-        <input asp-for="BillingAddress" class="form-control" />
+        <input asp-for="BillingAddress" class="form-control" maxlength="200" />
+        <small class="form-text text-muted">Maximum 200 characters. Encrypted server-side.</small>
         <span asp-validation-for="BillingAddress" class="text-danger"></span>
     </div>
 
     <div class="form-group">
         <label asp-for="ShippingAddress"></label>
-        <textarea asp-for="ShippingAddress" class="form-control"></textarea>
+        <textarea asp-for="ShippingAddress" class="form-control" maxlength="200"></textarea>
+        <small class="form-text text-muted">Maximum 200 characters. Encrypted server-side.</small>
         <span asp-validation-for="ShippingAddress" class="text-danger"></span>
     </div>
 
     <div class="form-group">
         <label asp-for="Email"></label>
-        <input asp-for="Email" class="form-control" />
+        <input asp-for="Email" class="form-control" maxlength="100" />
+        <small class="form-text text-muted">Maximum 100 characters. Encrypted server-side.</small>
         <span asp-validation-for="Email" class="text-danger"></span>
     </div>
 
@@ -135,6 +141,49 @@
             var registerBtn = document.getElementById('registerBtn');
             var form = document.getElementById('registerForm');
 
+            // Configuration for field length validation
+            var fieldLimits = {
+                'FirstName': { max: 50, min: 1, warning: 'First name' },
+                'LastName': { max: 50, min: 1, warning: 'Last name' },
+                'CreditCardNo': { max: 19, min: 13, warning: 'Credit card number' },
+                'MobileNo': { max: 20, min: 7, warning: 'Mobile number' },
+                'BillingAddress': { max: 200, min: 5, warning: 'Billing address' },
+                'ShippingAddress': { max: 200, min: 5, warning: 'Shipping address' },
+                'Email': { max: 100, min: 5, warning: 'Email address' }
+            };
+
+            // Add real-time length validation for each field
+            Object.keys(fieldLimits).forEach(function(fieldId) {
+                var field = document.getElementById(fieldId);
+                if (field) {
+                    field.addEventListener('input', function() {
+                        var limit = fieldLimits[fieldId];
+                        var length = this.value.length;
+                        
+                        // Update visual feedback
+                        if (length > limit.max) {
+                            this.classList.add('is-invalid');
+                            this.classList.remove('is-valid');
+                        } else if (length >= limit.min) {
+                            this.classList.add('is-valid');
+                            this.classList.remove('is-invalid');
+                        } else {
+                            this.classList.remove('is-valid');
+                            this.classList.remove('is-invalid');
+                        }
+                    });
+
+                    // Prevent exceeding max length (client-side enforcement)
+                    field.addEventListener('keypress', function(e) {
+                        var limit = fieldLimits[fieldId];
+                        if (this.value.length >= limit.max) {
+                            e.preventDefault();
+                            console.warn(limit.warning + ' has reached maximum length of ' + limit.max + ' characters');
+                        }
+                    });
+                }
+            });
+
             function updateStrength() {
                 var val = password.value || '';
                 var result = zxcvbn(val);
@@ -162,9 +211,36 @@
                 updateStrength();
             });
 
-            // Client-side enforcement: require score >= 3 (Good) for enabling submit
-            // For reCAPTCHA v3 token validation
+            // Client-side enforcement: validate all fields before submission
             async function submitFormWithRecaptcha() {
+                // Validate length constraints for all sensitive fields
+                for (var fieldId in fieldLimits) {
+                    var field = document.getElementById(fieldId);
+                    if (field) {
+                        var limit = fieldLimits[fieldId];
+                        var length = field.value.length;
+
+                        if (length === 0 && fieldId !== 'Photo') {
+                            alert(limit.warning + ' is required');
+                            field.focus();
+                            return false;
+                        }
+
+                        if (length > limit.max) {
+                            alert(limit.warning + ' must not exceed ' + limit.max + ' characters. Current length: ' + length);
+                            field.focus();
+                            return false;
+                        }
+
+                        if (length > 0 && length < limit.min) {
+                            alert(limit.warning + ' must be at least ' + limit.min + ' characters');
+                            field.focus();
+                            return false;
+                        }
+                    }
+                }
+
+                // Validate password strength
                 var val = password.value || '';
                 var res = zxcvbn(val);
                 if (res.score < 3) {
