@@ -9,7 +9,7 @@
         <div class="col-md-4 text-center">
             @if (!string.IsNullOrEmpty(Model.Member.PhotoURL))
             {
-                <img src="@Model.Member.PhotoURL" alt="User Photo" class="img-fluid rounded-circle" style="max-width: 200px; border: 1px solid #ddd; padding: 5px;" />
+                <img src="@Model.Member.PhotoURL" alt="User Photo" class="img-fluid rounded-circle" style="width: 200px; height: 200px; object-fit: cover; border: 1px solid #ddd; padding: 5px;" />
             }
             else
             {
@@ -25,29 +25,66 @@
                     <h4>Your Information</h4>
                 </div>
                 <div class="card-body">
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="sensitivInfoDropdown" data-bs-toggle="dropdown" aria-expanded="false" onclick="handleSensitiveInfoDropdown()">
+                            Click to view sensitive information
+                        </button>
+                        <ul class="dropdown-menu" aria-labelledby="sensitiveInfoDropdown" id="sensitiveInfoMenu" style="width: 500px; padding: 15px;">
+                            <li>
+                                <dl class="row" style="margin: 0;">
+                                    <dt class="col-sm-6">Credit Card No</dt>
+                                    <dd class="col-sm-6">@Model.DecryptedCreditCardNo</dd>
+
+                                    <dt class="col-sm-6">Mobile No</dt>
+                                    <dd class="col-sm-6">@(!string.IsNullOrEmpty(Model.DecryptedMobileNo) ? Model.DecryptedMobileNo : Model.Member.MobileNo)</dd>
+
+                                    <dt class="col-sm-6">Billing Address</dt>
+                                    <dd class="col-sm-6">@(!string.IsNullOrEmpty(Model.DecryptedBillingAddress) ? Model.DecryptedBillingAddress : Model.Member.BillingAddress)</dd>
+
+                                    <dt class="col-sm-6">Shipping Address</dt>
+                                    <dd class="col-sm-6">@(!string.IsNullOrEmpty(Model.DecryptedShippingAddress) ? Model.DecryptedShippingAddress : Model.Member.ShippingAddress)</dd>
+                                </dl>
+                            </li>
+                        </ul>
+                    </div>
+                    
+                    <!-- Non-sensitive information always visible -->
+                    <hr />
                     <dl class="row">
                         <dt class="col-sm-4">First Name</dt>
                         <dd class="col-sm-8">@(!string.IsNullOrEmpty(Model.DecryptedFirstName) ? Model.DecryptedFirstName : Model.Member.FirstName)</dd>
 
                         <dt class="col-sm-4">Last Name</dt>
                         <dd class="col-sm-8">@(!string.IsNullOrEmpty(Model.DecryptedLastName) ? Model.DecryptedLastName : Model.Member.LastName)</dd>
-
-                        <dt class="col-sm-4">Credit Card No</dt>
-                        <dd class="col-sm-8">@Model.DecryptedCreditCardNo</dd>
-
-                        <dt class="col-sm-4">Mobile No</dt>
-                        <dd class="col-sm-8">@(!string.IsNullOrEmpty(Model.DecryptedMobileNo) ? Model.DecryptedMobileNo : Model.Member.MobileNo)</dd>
-
-                        <dt class="col-sm-4">Billing Address</dt>
-                        <dd class="col-sm-8">@(!string.IsNullOrEmpty(Model.DecryptedBillingAddress) ? Model.DecryptedBillingAddress : Model.Member.BillingAddress)</dd>
-
-                        <dt class="col-sm-4">Shipping Address</dt>
-                        <dd class="col-sm-8">@(!string.IsNullOrEmpty(Model.DecryptedShippingAddress) ? Model.DecryptedShippingAddress : Model.Member.ShippingAddress)</dd>
                     </dl>
                 </div>
             </div>
         </div>
     </div>
+
+    <script>
+        function handleSensitiveInfoDropdown() {
+            // Check if session is still valid before showing sensitive info
+            fetch('/Account/CheckSessionValid', {
+                method: 'GET',
+                credentials: 'same-origin'
+            })
+                .then(function (response) {
+                    if (response.status === 200) {
+                        // Session valid, dropdown will show normally
+                        return response.json();
+                    } else if (response.status === 401) {
+                        // Session expired, force logout
+                        window.location.href = '/Account/Login?message=SessionExpired';
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Error checking session:', error);
+                    // On error, redirect to login to be safe
+                    window.location.href = '/Account/Login?message=SessionExpired';
+                });
+        }
+    </script>
 }
 else
 {

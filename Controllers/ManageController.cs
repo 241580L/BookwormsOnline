@@ -5,6 +5,9 @@ using BookwormsOnline.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using System.IO;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -15,14 +18,18 @@ namespace BookwormsOnline.Controllers
     public class ManageController : Controller
     {
         private readonly UserManager<IdentityUser> _userManager;
+        private readonly IEncryptionService _encryptionService;
         private readonly IEmailService _emailService;
         private readonly AuthDbContext _context;
+        private readonly IWebHostEnvironment _env;
 
-        public ManageController(UserManager<IdentityUser> userManager, IEmailService emailService, AuthDbContext context)
+        public ManageController(UserManager<IdentityUser> userManager, IEmailService emailService, AuthDbContext context, IEncryptionService encryptionService, IWebHostEnvironment env)
         {
             _userManager = userManager;
             _emailService = emailService;
             _context = context;
+            _encryptionService = encryptionService;
+            _env = env;
         }
 
         public async Task<IActionResult> Index()
@@ -140,6 +147,101 @@ namespace BookwormsOnline.Controllers
             await _context.SaveChangesAsync();
 
             TempData["Message"] = "Two-factor authentication has been disabled.";
+            return RedirectToAction(nameof(Index));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ChangeCredentials()
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null) return RedirectToAction(nameof(Index));
+
+            var member = _context.Members.SingleOrDefault(m => m.IdentityUserId == user.Id);
+            if (member == null) return NotFound();
+
+            var model = new ViewModels.ChangeCredentials
+            {
+                FirstName = _encryptionService.Decrypt(member.FirstName),
+                LastName = _encryptionService.Decrypt(member.LastName),
+                MobileNo = _encryptionService.Decrypt(member.MobileNo),
+                BillingAddress = _encryptionService.Decrypt(member.BillingAddress),
+                ShippingAddress = _encryptionService.Decrypt(member.ShippingAddress),
+                OriginalPhotoURL = member.PhotoURL
+            };
+
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ChangeCredentials(ViewModels.ChangeCredentials model)
+        {
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
+
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null) return RedirectToAction(nameof(Index));
+
+            var member = _context.Members.SingleOrDefault(m => m.IdentityUserId == user.Id);
+            if (member == null) return NotFound();
+
+            // keep original photo URL in model for view rendering if we need to return with errors
+            model.OriginalPhotoURL = member.PhotoURL;
+
+            if (model.Revert)
+            {
+                member.PhotoURL = model.OriginalPhotoURL;
+            }
+            else if (model.PhotoFile != null && model.PhotoFile.Length > 0)
+            {
+                var allowedTypes = new[] { "image/jpeg", "image/jpg" };
+                if (!allowedTypes.Contains(model.PhotoFile.ContentType?.ToLowerInvariant()))
+                {
+                    ModelState.AddModelError("PhotoFile", "Only JPG images are allowed.");
+                    return View(model);
+                }
+
+                const long maxBytes = 2 * 1024 * 1024; // 2MB
+                if (model.PhotoFile.Length > maxBytes)
+                {
+                    ModelState.AddModelError("PhotoFile", "File size must be 2MB or less.");
+                    return View(model);
+                }
+
+                var uploads = Path.Combine(_env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "uploads");
+                Directory.CreateDirectory(uploads);
+                var ext = Path.GetExtension(model.PhotoFile.FileName);
+                var fileName = $"{Guid.NewGuid()}{ext}";
+                var filePath = Path.Combine(uploads, fileName);
+                using (var fs = System.IO.File.Create(filePath))
+                {
+                    await model.PhotoFile.CopyToAsync(fs);
+                }
+
+                member.PhotoURL = $"/uploads/{fileName}";
+            }
+
+            member.FirstName = _encryptionService.Encrypt(model.FirstName ?? "");
+            member.LastName = _encryptionService.Encrypt(model.LastName ?? "");
+            member.MobileNo = _encryptionService.Encrypt(model.MobileNo ?? "");
+            member.BillingAddress = _encryptionService.Encrypt(model.BillingAddress ?? "");
+            member.ShippingAddress = _encryptionService.Encrypt(model.ShippingAddress ?? "");
+
+            var audit = new Audit
+            {
+                UserId = user.Id,
+                Action = "Updated credentials",
+                Timestamp = DateTime.UtcNow,
+                Details = $"User {user.Email} updated profile information (excluding email/password)."
+            };
+
+            _context.AuditLogs.Add(audit);
+            _context.Members.Update(member);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Your profile has been updated.";
             return RedirectToAction(nameof(Index));
         }
     }

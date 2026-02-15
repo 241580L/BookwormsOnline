@@ -9,10 +9,11 @@
     const WARNING_TIME_MS = 5 * 1000; // Show warning 5 seconds before timeout
     const COUNTDOWN_INTERVAL_MS = 1000; // Update countdown every second
 
-    let sessionTimeoutTimer = null;
-    let warningTimer = null;
     let countdownTimer = null;
     let timeoutModal = null;
+    let lastActivityTime = null;
+    let monitoringInterval = null;
+    let warningShown = false;
 
     // Initialize on page load
     function initSessionTimeout() {
@@ -26,66 +27,82 @@
             backdrop: 'static'
         });
 
+        lastActivityTime = Date.now();
         setupActivityListeners();
-        resetSessionTimeout();
+        startInactivityMonitoring();
     }
 
-    // Check if user is authenticated
+    // Check if user is authenticated (find the logout form by rendered action attribute)
     function isUserAuthenticated() {
-        return document.querySelector('form[asp-controller="Account"][asp-action="Logout"]') !== null;
+        return document.querySelector('form[action="/Account/Logout"]') !== null;
     }
 
     // Setup listeners for user activity
     function setupActivityListeners() {
-        document.addEventListener('mousedown', resetSessionTimeout);
-        document.addEventListener('keydown', resetSessionTimeout);
-        document.addEventListener('scroll', resetSessionTimeout);
-        document.addEventListener('touchstart', resetSessionTimeout);
-        document.addEventListener('click', resetSessionTimeout);
+        document.addEventListener('mousedown', recordActivity);
+        document.addEventListener('keydown', recordActivity);
+        document.addEventListener('scroll', recordActivity);
+        document.addEventListener('touchstart', recordActivity);
+        document.addEventListener('click', recordActivity);
     }
 
-    // Reset the session timeout
-    function resetSessionTimeout() {
-        clearTimeout(sessionTimeoutTimer);
-        clearTimeout(warningTimer);
-        clearInterval(countdownTimer);
+    // Record user activity and reset inactivity timer
+    function recordActivity() {
+        lastActivityTime = Date.now();
+        warningShown = false; // Reset warning flag when user is active
+    }
 
-        // Hide modal if visible
-        if (timeoutModal) {
-            timeoutModal.hide();
-            return document.querySelector('form[action="/Account/Logout"]') !== null;
-        }
+    // Start continuous inactivity monitoring (runs regardless of user activity)
+    function startInactivityMonitoring() {
+        // Check every second if user has been inactive for too long
+        monitoringInterval = setInterval(function () {
+            if (!isUserAuthenticated()) {
+                clearInterval(monitoringInterval);
+                return;
+            }
 
-        if (!isUserAuthenticated()) {
-            return;
-        }
+            const inactiveTime = Date.now() - lastActivityTime;
+            const timeRemaining = SESSION_TIMEOUT_MS - inactiveTime;
 
-        // Set warning timer (5 seconds before timeout)
-        warningTimer = setTimeout(function () {
-            showTimeoutWarning();
-        }, SESSION_TIMEOUT_MS - WARNING_TIME_MS);
-
-        // Set actual timeout
-        sessionTimeoutTimer = setTimeout(function () {
-            performLogout();
-        }, SESSION_TIMEOUT_MS);
+            // Check if warning time has been reached or passed
+            if (timeRemaining <= WARNING_TIME_MS && timeRemaining > 0 && !warningShown) {
+                warningShown = true;
+                showTimeoutWarning(timeRemaining);
+            }
+            // Check if timeout has been reached
+            else if (timeRemaining <= 0) {
+                // Perform logout immediately
+                performLogout();
+            }
+        }, 1000);
     }
 
     // Show the timeout warning modal
-    function showTimeoutWarning() {
+    function showTimeoutWarning(timeRemaining) {
         if (!timeoutModal) {
             return;
         }
 
-        let remainingSeconds = Math.ceil(WARNING_TIME_MS / 1000);
+        let remainingSeconds = Math.ceil(timeRemaining / 1000);
         document.getElementById('countdownTimer').textContent = remainingSeconds;
 
-        timeoutModal.show();
+        try {
+            timeoutModal.show();
+        } catch (e) {
+            console.error('Error showing modal:', e);
+        }
 
-        // Start countdown
+        // Update countdown every second
+        if (countdownTimer) {
+            clearInterval(countdownTimer);
+        }
+
         countdownTimer = setInterval(function () {
             remainingSeconds--;
-            document.getElementById('countdownTimer').textContent = remainingSeconds;
+            const element = document.getElementById('countdownTimer');
+            if (element) {
+                element.textContent = remainingSeconds;
+            }
 
             if (remainingSeconds <= 0) {
                 clearInterval(countdownTimer);
@@ -95,14 +112,30 @@
 
     // Logout user
     function performLogout() {
+        // Prevent multiple logout calls
+        if (document.body.dataset.loggingOut === 'true') {
+            return;
+        }
+        document.body.dataset.loggingOut = 'true';
+
+        // Clear monitoring interval
+        if (monitoringInterval) {
+            clearInterval(monitoringInterval);
+        }
+
         // Hide modal and disable user interaction
         if (timeoutModal) {
-            timeoutModal.hide();
+            try {
+                timeoutModal.hide();
+            } catch (e) {
+                // Modal might not exist; continue anyway
+            }
         }
         document.body.style.pointerEvents = 'none';
         document.body.style.opacity = '0.5';
-        //const logoutForm = document.querySelector('form[action="/Account/Logout"]');
-        const logoutForm = document.querySelector('form[asp-controller="Account"][asp-action="Logout"]');
+
+        // Get the anti-forgery token from the logout form if it exists
+        const logoutForm = document.querySelector('form[action="/Account/Logout"]');
         let token = null;
         
         if (logoutForm) {
@@ -121,7 +154,8 @@
         fetch('/Account/Logout', {
             method: 'POST',
             credentials: 'same-origin',
-            body: logoutData
+            body: logoutData,
+            keepalive: true // Ensure request completes even if page unloads
         })
             .then(function (response) {
                 // Redirect to login with timeout message
@@ -138,14 +172,28 @@
     document.addEventListener('DOMContentLoaded', function () {
         const continueBtn = document.getElementById('continueSessionBtn');
         if (continueBtn) {
-            continueBtn.addEventListener('click', function () {
-                // Make a simple request to refresh the session
-                fetch(window.location.href, {
+            continueBtn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                // Reset activity time to extend client-side session
+                lastActivityTime = Date.now();
+                warningShown = false;
+                
+                // Make a request to the server to refresh server-side session timeout
+                fetch('/Account/CheckSessionValid', {
                     method: 'GET',
                     credentials: 'same-origin'
-                }).then(function () {
-                    resetSessionTimeout();
-                }).catch(function (error) {
+                }).then(function(response) {
+                    // Server-side session has been refreshed by the request itself
+                    // Hide modal
+                    if (timeoutModal) {
+                        try {
+                            timeoutModal.hide();
+                        } catch (e) {
+                            // Ignore modal errors
+                        }
+                    }
+                }).catch(function(error) {
                     console.error('Error refreshing session:', error);
                 });
             });

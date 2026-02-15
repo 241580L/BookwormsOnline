@@ -10,6 +10,9 @@ namespace BookwormsOnline.Controllers
             string viewName = statusCode.ToString();
             switch (statusCode)
             {
+                case 400:
+                    ViewBag.ErrorMessage = "The request was invalid.";
+                    break;
                 case 404:
                     ViewBag.ErrorMessage = "Sorry, the resource you requested could not be found.";
                     break;

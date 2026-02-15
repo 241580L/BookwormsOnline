@@ -42,8 +42,8 @@
 - [x] Create and display custom error pages (e.g., 404, 403)
 
 ## Software Testing and Security Analysis
-- [ ] Perform source code analysis using external tools (e.g., GitHub)
-- [ ] Address security vulnerabilities identified in the source code
+- [x] Perform source code analysis using external tools (e.g., GitHub)
+- [x] Address security vulnerabilities identified in the source code
 
 ## Advanced Security Features
 - [x] Implement automatic account recovery after lockout period

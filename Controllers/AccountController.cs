@@ -734,6 +734,7 @@ namespace BookwormsOnline.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Logout()
         {
@@ -789,6 +790,30 @@ namespace BookwormsOnline.Controllers
                 var hash = pbkdf2.GetBytes(hashByteSize);
                 return Convert.ToBase64String(hash);
             }
+        }
+
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> CheckSessionValid()
+        {
+            // This endpoint is called via AJAX to check if the session is still valid
+            // and to extend the server-side session timeout by accessing the session data.
+            var userId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+            
+            // Access the session to extend its timeout
+            // Just reading from session triggers the timeout to be extended
+            var sessionUserId = HttpContext.Session.GetString("UserId");
+            if (string.IsNullOrEmpty(sessionUserId))
+            {
+                // Session data might be empty on first check, set it to extend timeout
+                HttpContext.Session.SetString("UserId", userId);
+            }
+            
+            return Json(new { valid = true });
         }
 
         private bool SecureEquals(string aBase64, string bBase64)

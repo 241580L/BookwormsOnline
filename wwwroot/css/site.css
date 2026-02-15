@@ -65,7 +65,7 @@ body {
   }
 }
 
-button, .btn {
+.btn-primary {
   background-color: #4a8;
   border-color: #4a8;
   color: white;
