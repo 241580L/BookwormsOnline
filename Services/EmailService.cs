@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using System.Linq;
 
 namespace BookwormsOnline.Services
 {
@@ -34,6 +35,9 @@ namespace BookwormsOnline.Services
                     _logger.LogError("Email subject is empty");
                     return false;
                 }
+
+                // Sanitize recipient for logging to prevent log forging
+                var sanitizedTo = SanitizeForLog(to);
 
                 // Get SMTP configuration
                 var smtpHost = _configuration["EmailSettings:SmtpHost"];
@@ -85,19 +89,30 @@ namespace BookwormsOnline.Services
                     }
                 }
 
-                _logger.LogInformation($"Email sent successfully to {to}");
+                _logger.LogInformation($"Email sent successfully to {sanitizedTo}");
                 return true;
             }
             catch (SmtpException ex)
             {
-                _logger.LogError($"SMTP error sending email to {to}: {ex.Message}");
+                _logger.LogError($"SMTP error sending email to {SanitizeForLog(to)}: {ex.Message}");
                 return false;
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error sending email to {to}: {ex.Message}");
+                _logger.LogError($"Error sending email to {SanitizeForLog(to)}: {ex.Message}");
                 return false;
             }
+        }
+
+        private static string SanitizeForLog(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
+            // Remove CR/LF and other control characters that could forge log lines
+            return new string(value.Where(ch => !char.IsControl(ch) || ch == '\t').ToArray());
         }
     }
 }
