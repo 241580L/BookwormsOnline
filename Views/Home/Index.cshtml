@@ -79,6 +79,7 @@
                     }
                 })
                 .catch(function (error) {
+                    alert('Your session has timed out. Please re-login.', error)
                     console.error('Error checking session:', error);
                     // On error, redirect to login to be safe
                     window.location.href = '/Account/Login?message=SessionExpired';

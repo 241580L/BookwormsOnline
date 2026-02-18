@@ -14,6 +14,7 @@
     let lastActivityTime = null;
     let monitoringInterval = null;
     let warningShown = false;
+    let sessionRefreshInterval = null;
 
     // Initialize on page load
     function initSessionTimeout() {
@@ -108,6 +109,20 @@
                 clearInterval(countdownTimer);
             }
         }, COUNTDOWN_INTERVAL_MS);
+
+        // Periodically refresh the server-side session while the warning is shown
+        // This prevents the session from expiring if the user was about to continue
+        if (sessionRefreshInterval) {
+            clearInterval(sessionRefreshInterval);
+        }
+        sessionRefreshInterval = setInterval(function () {
+            fetch('/Account/CheckSessionValid', {
+                method: 'GET',
+                credentials: 'same-origin'
+            }).catch(function(error) {
+                console.error('Session keep-alive fetch error:', error);
+            });
+        }, 2000); // Refresh every 2 seconds while warning is showing
     }
 
     // Logout user
@@ -118,9 +133,15 @@
         }
         document.body.dataset.loggingOut = 'true';
 
-        // Clear monitoring interval
+        // Clear all intervals
         if (monitoringInterval) {
             clearInterval(monitoringInterval);
+        }
+        if (countdownTimer) {
+            clearInterval(countdownTimer);
+        }
+        if (sessionRefreshInterval) {
+            clearInterval(sessionRefreshInterval);
         }
 
         // Hide modal and disable user interaction
@@ -175,26 +196,47 @@
             continueBtn.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                // Reset activity time to extend client-side session
-                lastActivityTime = Date.now();
-                warningShown = false;
                 
                 // Make a request to the server to refresh server-side session timeout
                 fetch('/Account/CheckSessionValid', {
                     method: 'GET',
                     credentials: 'same-origin'
-                }).then(function(response) {
-                    // Server-side session has been refreshed by the request itself
-                    // Hide modal
+                })
+                .then(function(response) {
+                    if (response.status === 200) {
+                        return response.json();
+                    } else if (response.status === 401) {
+                        window.location.href = '/Account/Login?message=SessionExpired';
+                        return Promise.reject('Session Expired');
+                    } else {
+                        throw new Error('Failed to refresh session.');
+                    }
+                })
+                .then(function(data) {
+                    // Session has been extended on the server side
+                    // Now reset the client-side timer to extend the client-side session warning
+                    lastActivityTime = Date.now();
+                    warningShown = false;
+
+                    // Stop the session keep-alive refresh since user is continuing
+                    if (sessionRefreshInterval) {
+                        clearInterval(sessionRefreshInterval);
+                        sessionRefreshInterval = null;
+                    }
+
+                    // Hide the modal
                     if (timeoutModal) {
                         try {
                             timeoutModal.hide();
                         } catch (e) {
-                            // Ignore modal errors
+                            console.error('Error hiding modal:', e);
                         }
                     }
-                }).catch(function(error) {
-                    console.error('Error refreshing session:', error);
+                })
+                .catch(function(error) {
+                    if (error !== 'Session Expired') {
+                      console.error('Error refreshing session:', error);
+                    }
                 });
             });
         }

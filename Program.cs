@@ -66,11 +66,12 @@ bildr.Services.AddControllersWithViews(options =>
 
 bildr.Services.AddSession(o =>
 {
-    o.IdleTimeout = TimeSpan.FromMinutes(1);
+    o.IdleTimeout = TimeSpan.FromMinutes(1.1);
     o.Cookie.HttpOnly = true;
     o.Cookie.IsEssential = true;
     o.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
     o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
+    o.IOTimeout = Timeout.InfiniteTimeSpan;
 });
 
 // Harden identity cookie
@@ -79,13 +80,13 @@ bildr.Services.ConfigureApplicationCookie(o =>
     o.Cookie.HttpOnly = true; // prevent JavaScript access and hence XSS attacks
     o.Cookie.SecurePolicy = Microsoft.AspNetCore.Http.CookieSecurePolicy.Always;
     o.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
-    o.ExpireTimeSpan = TimeSpan.FromMinutes(1);
+    o.ExpireTimeSpan = TimeSpan.FromMinutes(1.1);
     o.SlidingExpiration = true;
     o.LoginPath = "/Account/Login";
     o.AccessDeniedPath = "/ErrorHandler/403";
 });
 
-// NOTE: Do NOT register middleware type as singleton � UseMiddleware will construct it.
+// NOTE: Do NOT register middleware type as singleton  UseMiddleware will construct it.
 var ap = bildr.Build();
 
 // Configure the HTTP request pipeline.
@@ -93,6 +94,7 @@ var ap = bildr.Build();
 ap.UseStatusCodePagesWithReExecute("/ErrorHandler/{0}");
 
 // Use exception handler in all environments to show custom error pages instead of raw exceptions
+ap.UseMiddleware<SqlTimeoutMiddleware>();
 ap.UseExceptionHandler("/Home/Error");
 
 if (!ap.Environment.IsDevelopment())

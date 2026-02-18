@@ -28,6 +28,9 @@ namespace BookwormsOnline.Controllers
                 case 502:
                     ViewBag.ErrorMessage = "Cuckoo, the request timed out.";
                     break;
+                case 504:
+                    ViewBag.ErrorMessage = "The gateway has timed out.";
+                    break;
                 case 418:
                     ViewBag.ErrorMessage = "I'm a little teapot, short and stout.\nHere is my handle and here is my spout.\nWhen I get all steamed up, hear me shout:\n\"Tip me over and pour me out!\"";
                     break;

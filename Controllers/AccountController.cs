@@ -280,6 +280,7 @@ namespace BookwormsOnline.Controllers
                         _ctx.AuditLogs.Add(audit);
                         await _ctx.SaveChangesAsync();
 
+                        Console.WriteLine($"Setting User ID");
                         HttpContext.Session.SetString("UserId", user.Id);
 
                         return RedirectToAction("Index", "Home");
@@ -507,6 +508,13 @@ namespace BookwormsOnline.Controllers
 
             if (result.Succeeded)
             {
+                // Retrieve or create Member record and set SessionId for single-session enforcement
+                var member = _ctx.Members.FirstOrDefault(m => m.IdentityUserId == user.Id);
+                if (member != null)
+                {
+                    member.SessionId = HttpContext.Session.Id;
+                }
+
                 var audit = new Audit
                 {
                     UserId = user.Id,
@@ -515,6 +523,10 @@ namespace BookwormsOnline.Controllers
                     Details = $"User {user.Email} logged in with 2FA."
                 };
                 _ctx.AuditLogs.Add(audit);
+                
+                // Set session UserId for client-side validation and session extension
+                HttpContext.Session.SetString("UserId", user.Id);
+                
                 await _ctx.SaveChangesAsync();
 
                 return RedirectToAction("Index", "Home");
@@ -797,23 +809,26 @@ namespace BookwormsOnline.Controllers
         public async Task<IActionResult> CheckSessionValid()
         {
             // This endpoint is called via AJAX to check if the session is still valid
-            // and to extend the server-side session timeout by accessing the session data.
+            // and to extend the server-side session timeout by writing to session.
             var userId = _userManager.GetUserId(User);
             if (string.IsNullOrEmpty(userId))
             {
                 return Unauthorized();
             }
             
-            // Access the session to extend its timeout
-            // Just reading from session triggers the timeout to be extended
-            var sessionUserId = HttpContext.Session.GetString("UserId");
-            if (string.IsNullOrEmpty(sessionUserId))
-            {
-                // Session data might be empty on first check, set it to extend timeout
-                HttpContext.Session.SetString("UserId", userId);
-            }
+            // Write to session to extend its timeout (required for session sliding expiration to work)
+            HttpContext.Session.SetString("UserId", userId);
+            var currentSessionId = HttpContext.Session.Id;
             
-            return Json(new { valid = true });
+            // Also update Member.SessionId to ensure single-session enforcement stays valid
+            var member = _ctx.Members.FirstOrDefault(m => m.IdentityUserId == userId);
+            if (member != null && member.SessionId != currentSessionId)
+            {
+                member.SessionId = currentSessionId;
+                await _ctx.SaveChangesAsync();
+            }
+
+            return Json(new { valid = true, sessionId = currentSessionId });
         }
 
         private bool SecureEquals(string aBase64, string bBase64)
