@@ -111,8 +111,17 @@ namespace BookwormsOnline.Services
                 return value;
             }
 
-            // Remove CR/LF and other control characters that could forge log lines
-            return new string(value.Where(ch => !char.IsControl(ch) || ch == '\t').ToArray());
+            // Remove all control characters to prevent log forging and confusing log output,
+            // then limit the length of the value to avoid log flooding with user-controlled data.
+            var withoutControlChars = new string(value.Where(ch => !char.IsControl(ch)).ToArray());
+
+            const int maxLength = 256;
+            if (withoutControlChars.Length > maxLength)
+            {
+                return withoutControlChars.Substring(0, maxLength) + "...[truncated]";
+            }
+
+            return withoutControlChars;
         }
     }
 }
